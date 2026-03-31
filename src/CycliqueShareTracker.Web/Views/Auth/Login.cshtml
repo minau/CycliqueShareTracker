@@ -1,0 +1,18 @@
+@model LoginViewModel
+
+<div class="card">
+    <h2>Connexion</h2>
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div>
+            <label asp-for="Username"></label>
+            <input asp-for="Username" />
+        </div>
+        <div>
+            <label asp-for="Password"></label>
+            <input asp-for="Password" />
+        </div>
+        <button type="submit">Se connecter</button>
+        <div asp-validation-summary="ModelOnly"></div>
+    </form>
+</div>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CycliqueShareTracker</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>CycliqueShareTracker</h1>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <form asp-controller="Auth" asp-action="Logout" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit">Déconnexion</button>
+                </form>
+            }
+        </div>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+</body>
+</html>

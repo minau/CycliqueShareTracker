@@ -1,0 +1,55 @@
+@model DashboardViewModel
+
+<section class="grid">
+    <div class="card">
+        <h2>@Model.AssetName (@Model.AssetSymbol)</h2>
+        <p>Dernière mise à jour: @Model.LastUpdateDate</p>
+        <p>Dernier prix: @(Model.LastClose?.ToString("F2") ?? "N/A")</p>
+        <p>Variation jour: @(Model.DayChangePercent?.ToString("F2") ?? "N/A")%</p>
+    </div>
+
+    <div class="card">
+        <h3>Signal</h3>
+        <p class="signal">@Model.Signal</p>
+        <p>Score: @(Model.Score?.ToString() ?? "N/A") / 100</p>
+    </div>
+
+    <div class="card">
+        <h3>Indicateurs</h3>
+        <ul>
+            <li>SMA50: @(Model.Sma50?.ToString("F2") ?? "N/A")</li>
+            <li>SMA200: @(Model.Sma200?.ToString("F2") ?? "N/A")</li>
+            <li>RSI14: @(Model.Rsi14?.ToString("F2") ?? "N/A")</li>
+            <li>Drawdown 52w: @(Model.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</li>
+        </ul>
+    </div>
+</section>
+
+<form asp-action="Refresh" method="post">
+    @Html.AntiForgeryToken()
+    <button type="submit">Lancer une mise à jour manuelle</button>
+</form>
+
+<section class="card">
+    <h3>Historique récent</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model.RecentPrices)
+        {
+            <tr>
+                <td>@row.Date</td>
+                <td>@row.Open.ToString("F2")</td>
+                <td>@row.High.ToString("F2")</td>
+                <td>@row.Low.ToString("F2")</td>
+                <td>@row.Close.ToString("F2")</td>
+                <td>@row.Volume</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
