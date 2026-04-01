@@ -49,6 +49,19 @@ Configuration importante:
 - `Asset__Symbol` (par défaut `tte.fr`)
 - `Scheduler__DailyRunTimeUtc` (heure UTC du job quotidien)
 
+
+## Codex Setup
+
+Le script `codex/setup.sh` prépare l’environnement Codex quand le conteneur Ubuntu n’a pas .NET préinstallé.
+
+Il :
+- installe le SDK **.NET 8.0 (LTS)** si nécessaire (méthode `dotnet-install.sh`)
+- vérifie la disponibilité de `dotnet` dans le `PATH`
+- détecte automatiquement le fichier `.sln` du repository
+- exécute `dotnet restore`, `dotnet build`, puis `dotnet test` (les échecs de tests sont loggés sans faire échouer le setup)
+
+Dans l’environnement Codex, ce script est exécuté pendant la phase de setup **avant** les autres tâches, afin de garantir que le build et les tests .NET peuvent être lancés de manière fiable.
+
 ## Lancer en local avec Docker Compose
 
 ```bash
