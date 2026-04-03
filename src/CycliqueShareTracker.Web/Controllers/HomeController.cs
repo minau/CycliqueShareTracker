@@ -29,7 +29,7 @@ public class HomeController : Controller
         }
 
         var notice = snapshot.LastClose is null
-            ? "Aucune donnée marché disponible actuellement. Vérifiez l'accès réseau sortant vers Yahoo Finance et Alpha Vantage, puis relancez une mise à jour."
+            ? "Aucune donnée marché disponible actuellement. Vérifiez la configuration MarketData (provider principal/fallback), la clé API `MarketData__AlphaVantage__ApiKey` et l'accès réseau sortant, puis relancez une mise à jour."
             : null;
 
         var model = DashboardViewModel.FromSnapshot(snapshot, notice);
