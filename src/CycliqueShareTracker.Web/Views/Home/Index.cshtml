@@ -94,7 +94,100 @@
             wickData.push({ x: x.Date, y: null });
         });
 
-        new Chart(document.getElementById('priceChart'), {
+        const yPaddingRatio = 0;
+        const minYSpanAbsolute = 0.01;
+        const minYSpanRatio = 0.002;
+        const yUpdateEpsilon = 0.0001;
+
+        let lastAppliedYMin = null;
+        let lastAppliedYMax = null;
+
+        const toFiniteNumberOrNull = value => {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const setYScaleToVisibleRange = (chart, refreshChart = false) => {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            if (!xScale || !yScale) {
+                return;
+            }
+
+            const xMin = Number(xScale.min);
+            const xMax = Number(xScale.max);
+            if (Number.isNaN(xMin) || Number.isNaN(xMax)) {
+                return;
+            }
+
+            const startIndex = Math.max(0, Math.floor(xMin));
+            const endIndex = Math.min(points.length - 1, Math.ceil(xMax));
+            if (startIndex > endIndex) {
+                return;
+            }
+
+            let visibleMin = Number.POSITIVE_INFINITY;
+            let visibleMax = Number.NEGATIVE_INFINITY;
+
+            for (let i = startIndex; i <= endIndex; i++) {
+                const candidateValues = [
+                    toFiniteNumberOrNull(points[i].Low),
+                    toFiniteNumberOrNull(points[i].High),
+                    toFiniteNumberOrNull(points[i].Open),
+                    toFiniteNumberOrNull(points[i].Close),
+                    toFiniteNumberOrNull(points[i].Sma50),
+                    toFiniteNumberOrNull(points[i].Sma200)
+                ];
+
+                for (const value of candidateValues) {
+                    if (value === null) {
+                        continue;
+                    }
+
+                    visibleMin = Math.min(visibleMin, value);
+                    visibleMax = Math.max(visibleMax, value);
+                }
+            }
+
+            if (!Number.isFinite(visibleMin) || !Number.isFinite(visibleMax)) {
+                return;
+            }
+
+            const center = (visibleMax + visibleMin) / 2;
+            const dynamicMinYSpan = Math.max(Math.abs(center) * minYSpanRatio, minYSpanAbsolute);
+
+            let span = visibleMax - visibleMin;
+            if (span < dynamicMinYSpan) {
+                span = dynamicMinYSpan;
+                visibleMin = center - (span / 2);
+                visibleMax = center + (span / 2);
+            }
+
+            const padding = span * yPaddingRatio;
+            const targetMin = visibleMin - padding;
+            const targetMax = visibleMax + padding;
+
+            const minDiff = lastAppliedYMin === null ? Number.POSITIVE_INFINITY : Math.abs(targetMin - lastAppliedYMin);
+            const maxDiff = lastAppliedYMax === null ? Number.POSITIVE_INFINITY : Math.abs(targetMax - lastAppliedYMax);
+            if (minDiff < yUpdateEpsilon && maxDiff < yUpdateEpsilon) {
+                return;
+            }
+
+            chart.options.scales.y.min = targetMin;
+            chart.options.scales.y.max = targetMax;
+            lastAppliedYMin = targetMin;
+            lastAppliedYMax = targetMax;
+
+            if (refreshChart) {
+                chart.update('none');
+            }
+        };
+
+        const chart = new Chart(document.getElementById('priceChart'), {
             type: 'bar',
             data: {
                 labels,
@@ -164,7 +257,9 @@
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: 'xy'
+                            mode: 'x',
+                            onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
+                            onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
                         zoom: {
                             wheel: {
@@ -173,14 +268,13 @@
                             pinch: {
                                 enabled: true
                             },
-                            mode: 'xy'
+                            mode: 'x',
+                            onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
+                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
                         limits: {
                             x: {
                                 minRange: 10
-                            },
-                            y: {
-                                minRange: 1
                             }
                         }
                     }
@@ -188,9 +282,12 @@
                 scales: {
                     x: {
                         ticks: { maxTicksLimit: 8 }
-                    }
+                    },
+                    y: {}
                 }
             }
         });
+
+        setYScaleToVisibleRange(chart, true);
     })();
 </script>
