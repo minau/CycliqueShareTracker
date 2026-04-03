@@ -101,7 +101,7 @@
         let lastAppliedYMin = null;
         let lastAppliedYMax = null;
 
-        const setYScaleToVisibleRange = chart => {
+        const setYScaleToVisibleRange = (chart, refreshChart = false) => {
             const xScale = chart.scales.x;
             const yScale = chart.scales.y;
             if (!xScale || !yScale) {
@@ -124,15 +124,22 @@
             let visibleMax = Number.NEGATIVE_INFINITY;
 
             for (let i = startIndex; i <= endIndex; i++) {
-                const low = Number(points[i].Low);
-                const high = Number(points[i].High);
+                const candidateValues = [
+                    Number(points[i].Low),
+                    Number(points[i].High),
+                    Number(points[i].Open),
+                    Number(points[i].Close),
+                    Number(points[i].Sma50),
+                    Number(points[i].Sma200)
+                ];
 
-                if (Number.isFinite(low)) {
-                    visibleMin = Math.min(visibleMin, low);
-                }
+                for (const value of candidateValues) {
+                    if (!Number.isFinite(value)) {
+                        continue;
+                    }
 
-                if (Number.isFinite(high)) {
-                    visibleMax = Math.max(visibleMax, high);
+                    visibleMin = Math.min(visibleMin, value);
+                    visibleMax = Math.max(visibleMax, value);
                 }
             }
 
@@ -162,7 +169,10 @@
             chart.options.scales.y.max = targetMax;
             lastAppliedYMin = targetMin;
             lastAppliedYMax = targetMax;
-            chart.update('none');
+
+            if (refreshChart) {
+                chart.update('none');
+            }
         };
 
         const chart = new Chart(document.getElementById('priceChart'), {
@@ -245,11 +255,11 @@
                                 enabled: true
                             },
                             mode: 'x',
-                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart)
+                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
-                        onPan: ({ chart }) => setYScaleToVisibleRange(chart),
-                        onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart),
-                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart),
+                        onPan: ({ chart }) => setYScaleToVisibleRange(chart, false),
+                        onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true),
+                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart, false),
                         limits: {
                             x: {
                                 minRange: 10
@@ -268,6 +278,6 @@
             }
         });
 
-        setYScaleToVisibleRange(chart);
+        setYScaleToVisibleRange(chart, true);
     })();
 </script>
