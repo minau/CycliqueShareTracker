@@ -96,6 +96,10 @@
 
         const yPaddingRatio = 0.05;
         const minYSpan = 0.5;
+        const yUpdateEpsilon = 0.0001;
+
+        let lastAppliedYMin = null;
+        let lastAppliedYMax = null;
 
         const setYScaleToVisibleRange = chart => {
             const xScale = chart.scales.x;
@@ -145,8 +149,19 @@
             }
 
             const padding = span * yPaddingRatio;
-            chart.options.scales.y.min = visibleMin - padding;
-            chart.options.scales.y.max = visibleMax + padding;
+            const targetMin = visibleMin - padding;
+            const targetMax = visibleMax + padding;
+
+            const minDiff = lastAppliedYMin === null ? Number.POSITIVE_INFINITY : Math.abs(targetMin - lastAppliedYMin);
+            const maxDiff = lastAppliedYMax === null ? Number.POSITIVE_INFINITY : Math.abs(targetMax - lastAppliedYMax);
+            if (minDiff < yUpdateEpsilon && maxDiff < yUpdateEpsilon) {
+                return;
+            }
+
+            chart.options.scales.y.min = targetMin;
+            chart.options.scales.y.max = targetMax;
+            lastAppliedYMin = targetMin;
+            lastAppliedYMax = targetMax;
             chart.update('none');
         };
 
@@ -232,7 +247,9 @@
                             mode: 'xy',
                             onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart)
                         },
+                        onPan: ({ chart }) => setYScaleToVisibleRange(chart),
                         onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart),
+                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart),
                         limits: {
                             x: {
                                 minRange: 10
