@@ -45,7 +45,7 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
                 drawdown = highest == 0 ? 0 : ((current.Close / highest) - 1m) * 100m;
             }
 
-            var previousClose = i > 0 ? ordered[i - 1].Close : null;
+            var previousClose = i > 0 ? ordered[i - 1].Close : (decimal?)null;
             results.Add(new ComputedIndicator(current.Date, sma50, sma200, rsi14, drawdown, current.Close, previousClose));
         }
 
