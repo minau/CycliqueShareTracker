@@ -21,10 +21,24 @@ public sealed class StooqDataProvider : IDataProvider
         var normalized = symbol.ToLowerInvariant();
         var url = $"https://stooq.com/q/d/l/?s={normalized}&i=d";
 
-        using var response = await _httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (compatible; CycliqueShareTracker/1.0)");
+        request.Headers.TryAddWithoutValidation("Accept", "text/csv,text/plain;q=0.9,*/*;q=0.8");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Stooq provider returned HTTP {StatusCode} for {Symbol}", (int)response.StatusCode, symbol);
+            return Array.Empty<PriceBar>();
+        }
 
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (content.StartsWith("<", StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Stooq provider returned non-CSV content for {Symbol}", symbol);
+            return Array.Empty<PriceBar>();
+        }
+
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length <= 1)
         {

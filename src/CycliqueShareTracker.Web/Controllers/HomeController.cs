@@ -21,7 +21,18 @@ public class HomeController : Controller
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         var snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
-        var model = DashboardViewModel.FromSnapshot(snapshot);
+
+        if (snapshot.LastClose is null)
+        {
+            await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
+            snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
+        }
+
+        var notice = snapshot.LastClose is null
+            ? "Aucune donnée marché disponible actuellement. Vérifiez l'accès réseau sortant du serveur vers stooq.com puis relancez une mise à jour."
+            : null;
+
+        var model = DashboardViewModel.FromSnapshot(snapshot, notice);
         return View(model);
     }
 
