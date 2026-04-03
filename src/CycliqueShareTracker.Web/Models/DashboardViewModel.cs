@@ -38,6 +38,9 @@ public sealed class DashboardViewModel
             ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
             {
                 Date = x.Date.ToString("yyyy-MM-dd"),
+                Open = x.Open,
+                High = x.High,
+                Low = x.Low,
                 Close = x.Close,
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,

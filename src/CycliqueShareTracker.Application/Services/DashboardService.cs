@@ -58,6 +58,9 @@ public sealed class DashboardService : IDashboardService
                 signalByDate.TryGetValue(price.Date, out var signal);
                 return new DashboardChartPoint(
                     price.Date,
+                    price.Open,
+                    price.High,
+                    price.Low,
                     price.Close,
                     indicator?.Sma50,
                     indicator?.Sma200,

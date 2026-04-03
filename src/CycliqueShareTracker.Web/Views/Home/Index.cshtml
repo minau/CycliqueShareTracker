@@ -40,7 +40,7 @@
 
 <section class="card">
     <div class="section-header">
-        <h3>Prix & tendances (SMA50 / SMA200)</h3>
+        <h3>Bougies & tendances (SMA50 / SMA200)</h3>
         <a asp-controller="Home" asp-action="SignalHistory">Voir l'historique des signaux</a>
     </div>
     <canvas id="priceChart" height="110"></canvas>
@@ -74,6 +74,8 @@
     var chartDataJson = JsonSerializer.Serialize(Model.ChartPoints);
 }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
     (() => {
         const points = @Html.Raw(chartDataJson);
@@ -82,22 +84,107 @@
         }
 
         const labels = points.map(x => x.Date);
-        const buyZonePoints = points.map(x => x.IsBuyZone ? x.Close : null);
+        const candleBodies = points.map(x => [Number(x.Open), Number(x.Close)]);
+        const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
+        const wickData = [];
+
+        points.forEach(x => {
+            wickData.push({ x: x.Date, y: Number(x.Low) });
+            wickData.push({ x: x.Date, y: Number(x.High) });
+            wickData.push({ x: x.Date, y: null });
+        });
+
         new Chart(document.getElementById('priceChart'), {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels,
                 datasets: [
-                    { label: 'Close', data: points.map(x => x.Close), borderColor: '#111827', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'SMA 50', data: points.map(x => x.Sma50), borderColor: '#2563eb', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'SMA 200', data: points.map(x => x.Sma200), borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'BUY ZONE', data: buyZonePoints, showLine: false, pointRadius: 4, pointHoverRadius: 5, backgroundColor: '#16a34a', borderColor: '#16a34a' }
+                    {
+                        label: 'Bougies',
+                        data: candleBodies,
+                        backgroundColor: candleColors,
+                        borderColor: candleColors,
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.9,
+                        order: 2
+                    },
+                    {
+                        label: 'Mèches',
+                        type: 'line',
+                        data: wickData,
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        spanGaps: false,
+                        parsing: true,
+                        order: 1
+                    },
+                    {
+                        label: 'SMA 50',
+                        type: 'line',
+                        data: points.map(x => x.Sma50 === null ? null : Number(x.Sma50)),
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15,
+                        order: 0
+                    },
+                    {
+                        label: 'SMA 200',
+                        type: 'line',
+                        data: points.map(x => x.Sma200 === null ? null : Number(x.Sma200)),
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15,
+                        order: 0
+                    },
+                    {
+                        label: 'BUY ZONE',
+                        type: 'line',
+                        data: points.map(x => x.IsBuyZone ? Number(x.Close) : null),
+                        showLine: false,
+                        pointRadius: 4,
+                        pointHoverRadius: 5,
+                        backgroundColor: '#7c3aed',
+                        borderColor: '#7c3aed',
+                        order: 3
+                    }
                 ]
             },
             options: {
                 maintainAspectRatio: true,
                 interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { position: 'top' } },
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'xy'
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'xy'
+                        },
+                        limits: {
+                            x: {
+                                minRange: 10
+                            },
+                            y: {
+                                minRange: 1
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         ticks: { maxTicksLimit: 8 }
