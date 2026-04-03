@@ -257,9 +257,9 @@
                             mode: 'x',
                             onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
-                        onPan: ({ chart }) => setYScaleToVisibleRange(chart, false),
+                        onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
                         onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart, false),
+                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
                         limits: {
                             x: {
                                 minRange: 10
