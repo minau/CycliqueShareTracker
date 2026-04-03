@@ -74,9 +74,6 @@
     var chartDataJson = JsonSerializer.Serialize(Model.ChartPoints);
 }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
 <script>
     (() => {
         const points = @Html.Raw(chartDataJson);
@@ -84,64 +81,76 @@
             return;
         }
 
-        const candleData = points.map(x => ({
-            x: x.Date,
-            o: Number(x.Open),
-            h: Number(x.High),
-            l: Number(x.Low),
-            c: Number(x.Close)
-        }));
+        const labels = points.map(x => x.Date);
+        const candleBodies = points.map(x => [Number(x.Open), Number(x.Close)]);
+        const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
+        const wickData = [];
 
-        const buyZonePoints = points
-            .filter(x => x.IsBuyZone)
-            .map(x => ({ x: x.Date, y: Number(x.Close) }));
+        points.forEach(x => {
+            wickData.push({ x: x.Date, y: Number(x.Low) });
+            wickData.push({ x: x.Date, y: Number(x.High) });
+            wickData.push({ x: x.Date, y: null });
+        });
 
         new Chart(document.getElementById('priceChart'), {
-            type: 'candlestick',
+            type: 'bar',
             data: {
+                labels,
                 datasets: [
                     {
                         label: 'Bougies',
-                        data: candleData,
-                        color: {
-                            up: '#16a34a',
-                            down: '#dc2626',
-                            unchanged: '#6b7280'
-                        },
-                        borderColor: {
-                            up: '#16a34a',
-                            down: '#dc2626',
-                            unchanged: '#6b7280'
-                        }
+                        data: candleBodies,
+                        backgroundColor: candleColors,
+                        borderColor: candleColors,
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.9,
+                        order: 2
+                    },
+                    {
+                        label: 'Mèches',
+                        type: 'line',
+                        data: wickData,
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        spanGaps: false,
+                        parsing: true,
+                        order: 1
                     },
                     {
                         label: 'SMA 50',
                         type: 'line',
-                        data: points.map(x => ({ x: x.Date, y: x.Sma50 === null ? null : Number(x.Sma50) })),
+                        data: points.map(x => x.Sma50 === null ? null : Number(x.Sma50)),
                         borderColor: '#2563eb',
                         borderWidth: 2,
                         pointRadius: 0,
                         spanGaps: true,
-                        tension: 0.15
+                        tension: 0.15,
+                        order: 0
                     },
                     {
                         label: 'SMA 200',
                         type: 'line',
-                        data: points.map(x => ({ x: x.Date, y: x.Sma200 === null ? null : Number(x.Sma200) })),
+                        data: points.map(x => x.Sma200 === null ? null : Number(x.Sma200)),
                         borderColor: '#f59e0b',
                         borderWidth: 2,
                         pointRadius: 0,
                         spanGaps: true,
-                        tension: 0.15
+                        tension: 0.15,
+                        order: 0
                     },
                     {
                         label: 'BUY ZONE',
-                        type: 'scatter',
-                        data: buyZonePoints,
+                        type: 'line',
+                        data: points.map(x => x.IsBuyZone ? Number(x.Close) : null),
+                        showLine: false,
                         pointRadius: 4,
                         pointHoverRadius: 5,
                         backgroundColor: '#16a34a',
-                        borderColor: '#16a34a'
+                        borderColor: '#16a34a',
+                        order: 3
                     }
                 ]
             },
@@ -151,8 +160,6 @@
                 plugins: { legend: { position: 'top' } },
                 scales: {
                     x: {
-                        type: 'time',
-                        time: { unit: 'month' },
                         ticks: { maxTicksLimit: 8 }
                     }
                 }
