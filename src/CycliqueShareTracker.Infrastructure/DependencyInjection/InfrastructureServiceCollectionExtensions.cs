@@ -17,7 +17,14 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
-        services.AddHttpClient<IDataProvider, StooqDataProvider>();
+        services.Configure<MarketDataOptions>(configuration.GetSection(MarketDataOptions.SectionName));
+        services.AddSingleton<ProviderSymbolMapper>();
+
+        services.AddHttpClient<YahooFinanceDataProvider>();
+        services.AddHttpClient<AlphaVantageDataProvider>();
+        services.AddScoped<IMarketDataSource>(sp => sp.GetRequiredService<YahooFinanceDataProvider>());
+        services.AddScoped<IMarketDataSource>(sp => sp.GetRequiredService<AlphaVantageDataProvider>());
+        services.AddScoped<IDataProvider, FallbackMarketDataProvider>();
 
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IPriceRepository, PriceRepository>();

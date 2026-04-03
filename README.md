@@ -4,7 +4,7 @@ MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies 
 
 ## Objectifs couverts
 
-- Ingestion journalière des prix (provider Stooq CSV)
+- Ingestion journalière des prix (provider principal Yahoo Finance + fallback Alpha Vantage)
 - Stockage PostgreSQL
 - Calcul indicateurs: SMA50, SMA200, RSI14, drawdown 52 semaines
 - Score d'entrée sur 100 + signal textuel (`NO BUY`, `WATCH`, `BUY ZONE`)
@@ -20,8 +20,74 @@ Monorepo en couches:
 - `src/CycliqueShareTracker.Web` : UI MVC, auth, endpoints, background job
 - `src/CycliqueShareTracker.Application` : interfaces et logique métier (indicateurs, score/signal, orchestration)
 - `src/CycliqueShareTracker.Domain` : entités métier
-- `src/CycliqueShareTracker.Infrastructure` : provider données, repositories, EF Core/PostgreSQL
-- `tests/CycliqueShareTracker.Tests` : tests unitaires moteur score + cas limites indicateurs
+- `src/CycliqueShareTracker.Infrastructure` : providers de données, fallback, repositories, EF Core/PostgreSQL
+- `tests/CycliqueShareTracker.Tests` : tests unitaires moteur score + indicateurs + logique provider/fallback
+
+## Providers de données de marché
+
+### Pourquoi Stooq a été remplacé
+
+Le provider Stooq CSV a été retiré pour améliorer:
+
+- la robustesse (fallback explicite entre providers)
+- la maintenabilité (contrat commun et validation uniforme)
+- l'évolutivité (changement de provider via configuration)
+
+### Providers utilisés maintenant
+
+- **Provider principal**: `YahooFinance`
+- **Provider fallback**: `AlphaVantage`
+
+Flux d'exécution:
+1. tentative sur provider principal
+2. si échec HTTP, exception, réponse vide ou données invalides/incomplètes: bascule fallback
+3. si les deux échouent: log d'erreur explicite, aucune corruption des données existantes
+
+### Modèle de données commun
+
+Tous les providers retournent le même modèle journalier:
+
+- `symbol` (symbole demandé/mappé)
+- `date`
+- `open`
+- `high`
+- `low`
+- `close`
+- `adjusted close` (si disponible)
+- `volume`
+
+Le reste du pipeline (stockage, indicateurs, signaux, dashboard) ne dépend pas du format natif Yahoo/Alpha Vantage.
+
+### Configuration providers
+
+Variables clés:
+
+- `MarketData__PrimaryProvider` (ex: `YahooFinance`)
+- `MarketData__FallbackProvider` (ex: `AlphaVantage`)
+- `MarketData__AlphaVantage__ApiKey` (secret, via variable d'environnement)
+
+Aucun secret n'est hardcodé.
+
+### Mapping des symboles
+
+Le mapping provider est centralisé dans `MarketData:SymbolMap`.
+
+Exemple minimal pour TotalEnergies:
+
+- Yahoo Finance: `TTE.PA`
+- Alpha Vantage: `TTE.PA`
+- Compatibilité héritée: `TTE.FR` est automatiquement converti vers `TTE.PA` pour éviter les régressions sur des données/config existantes.
+
+Vous pouvez ensuite ajouter d'autres actifs/providers en configuration sans disséminer des symboles en dur.
+
+### Changer le provider principal plus tard
+
+Modifiez simplement:
+
+- `MarketData__PrimaryProvider`
+- `MarketData__FallbackProvider`
+
+et conservez/ajustez les mappings dans `MarketData__SymbolMap__...`.
 
 ## Règles de scoring MVP 1
 
@@ -40,15 +106,17 @@ Mapping:
 ## Configuration
 
 1. Copier `.env.example` vers `.env`
-2. Modifier au minimum `Auth__Password` et `POSTGRES_PASSWORD`
+2. Modifier au minimum `Auth__Password`, `POSTGRES_PASSWORD` et `MarketData__AlphaVantage__ApiKey`
 
 Configuration importante:
 - `ConnectionStrings__Postgres`
 - `Auth__Username`
 - `Auth__Password`
-- `Asset__Symbol` (par défaut `tte.fr`)
+- `Asset__Symbol` (par défaut `TTE.PA`)
 - `Scheduler__DailyRunTimeUtc` (heure UTC du job quotidien)
-
+- `MarketData__PrimaryProvider`
+- `MarketData__FallbackProvider`
+- `MarketData__AlphaVantage__ApiKey`
 
 ## Codex Setup
 
