@@ -64,7 +64,8 @@ public sealed class DashboardService : IDashboardService
                     price.Close,
                     indicator?.Sma50,
                     indicator?.Sma200,
-                    signal?.SignalLabel);
+                    signal?.SignalLabel,
+                    signal?.ExitSignalLabel);
             })
             .ToList();
 
@@ -80,6 +81,9 @@ public sealed class DashboardService : IDashboardService
             latestIndicator?.Drawdown52WeeksPercent,
             latestSignal?.Score,
             latestSignal?.SignalLabel,
+            latestSignal?.ExitScore,
+            latestSignal?.ExitSignalLabel,
+            latestSignal?.ExitPrimaryReason,
             chartPoints,
             ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList());
     }
@@ -110,7 +114,10 @@ public sealed class DashboardService : IDashboardService
                     indicator?.Rsi14,
                     indicator?.Drawdown52WeeksPercent,
                     signal?.Score,
-                    signal?.SignalLabel);
+                    signal?.SignalLabel,
+                    signal?.ExitScore,
+                    signal?.ExitSignalLabel,
+                    signal?.ExitPrimaryReason);
             })
             .ToList();
     }

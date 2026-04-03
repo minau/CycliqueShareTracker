@@ -1,4 +1,4 @@
-# CycliqueShareTracker - MVP 2A
+# CycliqueShareTracker - MVP 3
 
 MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies (Euronext Paris)** avec une approche simple et cyclique.
 
@@ -8,9 +8,10 @@ MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies 
 - Stockage PostgreSQL
 - Calcul indicateurs: SMA50, SMA200, RSI14, drawdown 52 semaines
 - Score d'entrée sur 100 + signal textuel (`NO BUY`, `WATCH`, `BUY ZONE`)
+- Score de sortie sur 100 + signal textuel (`HOLD`, `TRIM / TAKE PROFIT`, `SELL ZONE`) + raison principale
 - Dashboard web privé (auth cookie + mot de passe unique via variable d'environnement)
-- Graphique dashboard `Close + SMA50 + SMA200` (avec marqueurs `BUY ZONE`)
-- Page protégée **Historique des signaux** (date, close, SMA50, SMA200, RSI14, drawdown, score, signal)
+- Graphique dashboard `Close + SMA50 + SMA200` (avec marqueurs `BUY ZONE` et `SELL ZONE`)
+- Page protégée **Historique des signaux** (date, close, SMA50, SMA200, RSI14, drawdown, entry score/signal, exit score/signal, raison sortie)
 - Historique des signaux en base
 - Planification quotidienne + déclenchement manuel
 - Docker + Docker Compose prêts pour VPS OVH Linux
@@ -104,6 +105,27 @@ Mapping:
 - `0..39` => `NO BUY`
 - `40..69` => `WATCH`
 - `70..100` => `BUY ZONE`
+
+
+## Règles de score de sortie MVP 3
+
+Le moteur de sortie est volontairement simple, déterministe et séparé du moteur d'entrée.
+
+Critères (score borné entre `0..100`):
+
+- `+25` si `RSI14 >= 75`
+- `+20` si `Close > SMA50` de plus de `12%`
+- `+20` si `RSI` était en surachat la veille puis baisse avec une clôture rouge
+- `+15` si `Close < Close veille` (dégradation momentum court terme)
+- `+25` si `Close < SMA50` (cassure court/moyen terme)
+- `+30` si `Close < SMA200` (cassure de tendance majeure)
+
+Mapping:
+- `0..34` => `HOLD`
+- `35..64` => `TRIM / TAKE PROFIT`
+- `65..100` => `SELL ZONE`
+
+Le dashboard affiche également la raison principale de sortie (ex: cassure SMA200, surachat, etc.).
 
 ## Configuration
 

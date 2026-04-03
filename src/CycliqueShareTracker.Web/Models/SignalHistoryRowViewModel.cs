@@ -10,4 +10,7 @@ public sealed class SignalHistoryRowViewModel
     public decimal? Drawdown52WeeksPercent { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
+    public int? ExitScore { get; init; }
+    public string ExitSignal { get; init; } = "N/A";
+    public string ExitPrimaryReason { get; init; } = "N/A";
 }

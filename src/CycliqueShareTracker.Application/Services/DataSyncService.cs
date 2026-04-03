@@ -15,6 +15,7 @@ public sealed class DataSyncService : IDataSyncService
     private readonly IAssetRepository _assetRepository;
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly ISignalService _signalService;
+    private readonly IExitSignalService _exitSignalService;
     private readonly AssetOptions _assetOptions;
     private readonly ILogger<DataSyncService> _logger;
 
@@ -26,6 +27,7 @@ public sealed class DataSyncService : IDataSyncService
         IAssetRepository assetRepository,
         IIndicatorCalculator indicatorCalculator,
         ISignalService signalService,
+        IExitSignalService exitSignalService,
         IOptions<AssetOptions> assetOptions,
         ILogger<DataSyncService> logger)
     {
@@ -36,6 +38,7 @@ public sealed class DataSyncService : IDataSyncService
         _assetRepository = assetRepository;
         _indicatorCalculator = indicatorCalculator;
         _signalService = signalService;
+        _exitSignalService = exitSignalService;
         _assetOptions = assetOptions.Value;
         _logger = logger;
     }
@@ -83,18 +86,27 @@ public sealed class DataSyncService : IDataSyncService
 
         await _indicatorRepository.UpsertIndicatorsAsync(asset.Id, indicators, cancellationToken);
 
-        var signals = computed.Select(item =>
+        var signals = new List<DailySignal>(computed.Count);
+
+        for (var i = 0; i < computed.Count; i++)
         {
+            var item = computed[i];
+            var previous = i > 0 ? computed[i - 1] : null;
             var signal = _signalService.BuildSignal(item);
-            return new DailySignal
+            var exitSignal = _exitSignalService.BuildExitSignal(item, previous);
+
+            signals.Add(new DailySignal
             {
                 AssetId = asset.Id,
                 Date = item.Date,
                 Score = signal.Score,
                 SignalLabel = signal.Label,
-                Explanation = signal.Explanation
-            };
-        }).ToList();
+                Explanation = signal.Explanation,
+                ExitScore = exitSignal.ExitScore,
+                ExitSignalLabel = exitSignal.ExitSignal,
+                ExitPrimaryReason = exitSignal.PrimaryExitReason
+            });
+        }
 
         await _signalRepository.UpsertSignalsAsync(asset.Id, signals, cancellationToken);
 

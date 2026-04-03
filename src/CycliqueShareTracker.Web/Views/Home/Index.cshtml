@@ -17,9 +17,17 @@
     </div>
 
     <div class="card">
-        <h3>Signal</h3>
+        <h3>Signal d'entrée</h3>
         <p class="signal">@Model.Signal</p>
         <p>Score: @(Model.Score?.ToString() ?? "N/A") / 100</p>
+    </div>
+
+
+    <div class="card">
+        <h3>Signal de sortie</h3>
+        <p class="signal">@Model.ExitSignal</p>
+        <p>Exit score: @(Model.ExitScore?.ToString() ?? "N/A") / 100</p>
+        <p>Raison principale: @Model.ExitPrimaryReason</p>
     </div>
 
     <div class="card">
@@ -245,6 +253,18 @@
                         pointHoverRadius: 5,
                         backgroundColor: '#7c3aed',
                         borderColor: '#7c3aed',
+                        order: 3
+                    },
+                    {
+                        label: 'SELL ZONE',
+                        type: 'line',
+                        data: points.map(x => x.IsSellZone ? Number(x.Close) : null),
+                        showLine: false,
+                        pointStyle: 'triangle',
+                        pointRadius: 5,
+                        pointHoverRadius: 6,
+                        backgroundColor: '#dc2626',
+                        borderColor: '#dc2626',
                         order: 3
                     }
                 ]

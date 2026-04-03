@@ -10,4 +10,7 @@ public sealed record SignalHistoryRow(
     decimal? Rsi14,
     decimal? Drawdown52WeeksPercent,
     int? Score,
-    SignalLabel? SignalLabel);
+    SignalLabel? SignalLabel,
+    int? ExitScore,
+    ExitSignalLabel? ExitSignalLabel,
+    string? ExitPrimaryReason);

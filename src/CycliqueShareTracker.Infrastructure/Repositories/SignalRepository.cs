@@ -32,6 +32,9 @@ public sealed class SignalRepository : ISignalRepository
                 row.Score = item.Score;
                 row.SignalLabel = item.SignalLabel;
                 row.Explanation = item.Explanation;
+                row.ExitScore = item.ExitScore;
+                row.ExitSignalLabel = item.ExitSignalLabel;
+                row.ExitPrimaryReason = item.ExitPrimaryReason;
             }
             else
             {

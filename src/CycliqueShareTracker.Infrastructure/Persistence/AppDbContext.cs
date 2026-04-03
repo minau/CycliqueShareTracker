@@ -46,6 +46,7 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(x => new { x.AssetId, x.Date }).IsUnique();
             entity.Property(x => x.Explanation).HasMaxLength(512);
+            entity.Property(x => x.ExitPrimaryReason).HasMaxLength(512);
         });
     }
 }
