@@ -53,6 +53,34 @@ public sealed class MarketDataProviderTests
         Assert.Equal(100.3m, result[0].AdjustedClose);
     }
 
+
+    [Fact]
+    public async Task YahooProvider_ShouldConvertLegacyFrSymbol_ToPaSymbol()
+    {
+        const string yahooEmptyJson = """
+        {
+          "chart": {
+            "result": []
+          }
+        }
+        """;
+
+        string? requestedUrl = null;
+        var provider = new YahooFinanceDataProvider(
+            new HttpClient(new FakeHttpMessageHandler(req =>
+            {
+                requestedUrl = req.RequestUri?.ToString();
+                return FakeHttpMessageHandler.Json(HttpStatusCode.OK, yahooEmptyJson);
+            })),
+            Options.Create(new MarketDataOptions()).ToSymbolMapper(),
+            NullLogger<YahooFinanceDataProvider>.Instance);
+
+        _ = await provider.FetchDailyPricesAsync("tte.fr");
+
+        Assert.NotNull(requestedUrl);
+        Assert.Contains("/TTE.PA?", requestedUrl);
+    }
+
     [Fact]
     public async Task YahooProvider_ShouldRejectInvalidBars_WhenPriceIsNotPositive()
     {

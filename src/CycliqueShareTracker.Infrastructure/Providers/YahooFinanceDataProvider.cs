@@ -29,7 +29,11 @@ public sealed class YahooFinanceDataProvider : IMarketDataSource
         var providerSymbol = _symbolMapper.Resolve(Name, symbol);
         var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{providerSymbol}?interval=1d&range=10y&events=history&includeAdjustedClose=true";
 
-        using var response = await _httpClient.GetAsync(url, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (compatible; CycliqueShareTracker/1.0)");
+        request.Headers.TryAddWithoutValidation("Accept", "application/json,text/plain;q=0.9,*/*;q=0.8");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("Yahoo Finance returned HTTP {StatusCode} for symbol {Symbol}", (int)response.StatusCode, providerSymbol);

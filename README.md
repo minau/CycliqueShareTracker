@@ -76,6 +76,7 @@ Exemple minimal pour TotalEnergies:
 
 - Yahoo Finance: `TTE.PA`
 - Alpha Vantage: `TTE.PA`
+- Compatibilité héritée: `TTE.FR` est automatiquement converti vers `TTE.PA` pour éviter les régressions sur des données/config existantes.
 
 Vous pouvez ensuite ajouter d'autres actifs/providers en configuration sans disséminer des symboles en dur.
 
