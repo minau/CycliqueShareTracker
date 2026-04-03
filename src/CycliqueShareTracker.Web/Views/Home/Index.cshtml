@@ -95,7 +95,8 @@
         });
 
         const yPaddingRatio = 0;
-        const minYSpan = 0.5;
+        const minYSpanAbsolute = 0.01;
+        const minYSpanRatio = 0.002;
         const yUpdateEpsilon = 0.0001;
 
         let lastAppliedYMin = null;
@@ -147,10 +148,12 @@
                 return;
             }
 
+            const center = (visibleMax + visibleMin) / 2;
+            const dynamicMinYSpan = Math.max(Math.abs(center) * minYSpanRatio, minYSpanAbsolute);
+
             let span = visibleMax - visibleMin;
-            if (span < minYSpan) {
-                const center = (visibleMax + visibleMin) / 2;
-                span = minYSpan;
+            if (span < dynamicMinYSpan) {
+                span = dynamicMinYSpan;
                 visibleMin = center - (span / 2);
                 visibleMax = center + (span / 2);
             }
