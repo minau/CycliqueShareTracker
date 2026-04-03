@@ -105,7 +105,7 @@ public sealed class YahooFinanceDataProvider : IMarketDataSource
             if (!TryGetDecimal(lows, i, out var low)) continue;
             if (!TryGetDecimal(closes, i, out var close)) continue;
             var volume = TryGetLong(volumes, i, out var parsedVolume) ? parsedVolume : 0;
-            var adjustedClose = adjCloseValues.HasValue && TryGetDecimal(adjCloseValues.Value, i, out var adj) ? adj : null;
+            var adjustedClose = adjCloseValues.HasValue && TryGetDecimal(adjCloseValues.Value, i, out var adj) ? (decimal?)adj : (decimal?)null;
 
             bars.Add(new PriceBar(date, open, high, low, close, volume, adjustedClose));
         }

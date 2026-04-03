@@ -82,7 +82,7 @@ public sealed class AlphaVantageDataProvider : IMarketDataSource
             if (!TryReadDecimal(item, "4. close", out var close)) continue;
 
             _ = TryReadLong(item, "6. volume", out var volume);
-            var adjustedClose = TryReadDecimal(item, "5. adjusted close", out var adj) ? adj : null;
+            var adjustedClose = TryReadDecimal(item, "5. adjusted close", out var adj) ? (decimal?)adj : (decimal?)null;
 
             bars.Add(new PriceBar(date, open, high, low, close, volume, adjustedClose));
         }
