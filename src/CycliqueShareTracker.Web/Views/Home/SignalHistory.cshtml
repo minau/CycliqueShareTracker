@@ -1,0 +1,40 @@
+@model SignalHistoryViewModel
+
+<section class="card">
+    <div class="section-header">
+        <h2>Historique des signaux - @Model.AssetName (@Model.AssetSymbol)</h2>
+        <a asp-controller="Home" asp-action="Index">Retour au dashboard</a>
+    </div>
+</section>
+
+<section class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Clôture</th>
+                <th>SMA 50</th>
+                <th>SMA 200</th>
+                <th>RSI 14</th>
+                <th>Drawdown 52w</th>
+                <th>Score</th>
+                <th>Signal</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model.Rows)
+        {
+            <tr>
+                <td>@row.Date</td>
+                <td>@row.Close.ToString("F2")</td>
+                <td>@(row.Sma50?.ToString("F2") ?? "N/A")</td>
+                <td>@(row.Sma200?.ToString("F2") ?? "N/A")</td>
+                <td>@(row.Rsi14?.ToString("F2") ?? "N/A")</td>
+                <td>@(row.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
+                <td>@(row.Score?.ToString() ?? "N/A")</td>
+                <td>@row.Signal</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>

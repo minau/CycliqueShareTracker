@@ -1,4 +1,4 @@
-# CycliqueShareTracker - MVP 1
+# CycliqueShareTracker - MVP 2A
 
 MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies (Euronext Paris)** avec une approche simple et cyclique.
 
@@ -9,6 +9,8 @@ MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies 
 - Calcul indicateurs: SMA50, SMA200, RSI14, drawdown 52 semaines
 - Score d'entrée sur 100 + signal textuel (`NO BUY`, `WATCH`, `BUY ZONE`)
 - Dashboard web privé (auth cookie + mot de passe unique via variable d'environnement)
+- Graphique dashboard `Close + SMA50 + SMA200` (avec marqueurs `BUY ZONE`)
+- Page protégée **Historique des signaux** (date, close, SMA50, SMA200, RSI14, drawdown, score, signal)
 - Historique des signaux en base
 - Planification quotidienne + déclenchement manuel
 - Docker + Docker Compose prêts pour VPS OVH Linux

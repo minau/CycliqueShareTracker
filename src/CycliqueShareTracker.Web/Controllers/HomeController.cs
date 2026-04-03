@@ -43,4 +43,30 @@ public class HomeController : Controller
         await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
         return RedirectToAction(nameof(Index));
     }
+
+    [HttpGet]
+    public async Task<IActionResult> SignalHistory(CancellationToken cancellationToken)
+    {
+        var snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
+        var history = await _dashboardService.GetSignalHistoryAsync(cancellationToken);
+
+        var model = new SignalHistoryViewModel
+        {
+            AssetSymbol = snapshot.AssetSymbol,
+            AssetName = snapshot.AssetName,
+            Rows = history.Select(row => new SignalHistoryRowViewModel
+            {
+                Date = row.Date.ToString("dd/MM/yyyy"),
+                Close = row.Close,
+                Sma50 = row.Sma50,
+                Sma200 = row.Sma200,
+                Rsi14 = row.Rsi14,
+                Drawdown52WeeksPercent = row.Drawdown52WeeksPercent,
+                Score = row.Score,
+                Signal = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString())
+            }).ToList()
+        };
+
+        return View(model);
+    }
 }

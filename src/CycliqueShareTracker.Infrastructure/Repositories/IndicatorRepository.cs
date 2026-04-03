@@ -50,4 +50,13 @@ public sealed class IndicatorRepository : IIndicatorRepository
             .OrderByDescending(x => x.Date)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<DailyIndicator>> GetIndicatorsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.DailyIndicators
+            .Where(x => x.AssetId == assetId)
+            .OrderByDescending(x => x.Date)
+            .Take(maxRows)
+            .ToListAsync(cancellationToken);
+    }
 }

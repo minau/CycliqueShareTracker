@@ -49,4 +49,13 @@ public sealed class SignalRepository : ISignalRepository
             .OrderByDescending(x => x.Date)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<DailySignal>> GetSignalsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.DailySignals
+            .Where(x => x.AssetId == assetId)
+            .OrderByDescending(x => x.Date)
+            .Take(maxRows)
+            .ToListAsync(cancellationToken);
+    }
 }

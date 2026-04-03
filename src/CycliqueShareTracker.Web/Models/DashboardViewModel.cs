@@ -16,6 +16,7 @@ public sealed class DashboardViewModel
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
     public string? Notice { get; init; }
+    public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
     public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string? notice = null)
@@ -32,9 +33,22 @@ public sealed class DashboardViewModel
             Rsi14 = snapshot.Rsi14,
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
             Score = snapshot.Score,
-            Signal = snapshot.SignalLabel?.ToString().ToUpperInvariant().Replace("NOBUY", "NO BUY").Replace("BUYZONE", "BUY ZONE") ?? "N/A",
+            Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
             Notice = notice,
+            ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
+            {
+                Date = x.Date.ToString("yyyy-MM-dd"),
+                Close = x.Close,
+                Sma50 = x.Sma50,
+                Sma200 = x.Sma200,
+                IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal)
+            }).ToList(),
             RecentPrices = snapshot.RecentPrices
         };
+    }
+
+    public static string FormatSignal(string? signal)
+    {
+        return signal?.ToUpperInvariant().Replace("NOBUY", "NO BUY").Replace("BUYZONE", "BUY ZONE") ?? "N/A";
     }
 }
