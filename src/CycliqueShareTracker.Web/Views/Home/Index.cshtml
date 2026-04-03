@@ -102,6 +102,15 @@
         let lastAppliedYMin = null;
         let lastAppliedYMax = null;
 
+        const toFiniteNumberOrNull = value => {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const setYScaleToVisibleRange = (chart, refreshChart = false) => {
             const xScale = chart.scales.x;
             const yScale = chart.scales.y;
@@ -126,16 +135,16 @@
 
             for (let i = startIndex; i <= endIndex; i++) {
                 const candidateValues = [
-                    Number(points[i].Low),
-                    Number(points[i].High),
-                    Number(points[i].Open),
-                    Number(points[i].Close),
-                    Number(points[i].Sma50),
-                    Number(points[i].Sma200)
+                    toFiniteNumberOrNull(points[i].Low),
+                    toFiniteNumberOrNull(points[i].High),
+                    toFiniteNumberOrNull(points[i].Open),
+                    toFiniteNumberOrNull(points[i].Close),
+                    toFiniteNumberOrNull(points[i].Sma50),
+                    toFiniteNumberOrNull(points[i].Sma200)
                 ];
 
                 for (const value of candidateValues) {
-                    if (!Number.isFinite(value)) {
+                    if (value === null) {
                         continue;
                     }
 
