@@ -12,10 +12,14 @@
             <h1>CycliqueShareTracker</h1>
             @if (User.Identity?.IsAuthenticated == true)
             {
-                <form asp-controller="Auth" asp-action="Logout" method="post">
-                    @Html.AntiForgeryToken()
-                    <button type="submit">Déconnexion</button>
-                </form>
+                <div class="top-nav">
+                    <a asp-controller="Home" asp-action="Index">Dashboard</a>
+                    <a asp-controller="Home" asp-action="SignalHistory">Historique des signaux</a>
+                    <form asp-controller="Auth" asp-action="Logout" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit">Déconnexion</button>
+                    </form>
+                </div>
             }
         </div>
     </header>

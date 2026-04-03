@@ -31,6 +31,55 @@ public sealed class DashboardServiceTests
         Assert.Equal(252, priceRepository.LastRequestedMaxRows);
     }
 
+    [Fact]
+    public async Task GetSignalHistoryAsync_ShouldProjectValuesOrderedByMostRecent()
+    {
+        var priceRepository = new FakePriceRepository
+        {
+            Prices = new[]
+            {
+                new DailyPrice { AssetId = 1, Date = new DateOnly(2026, 04, 02), Close = 80m },
+                new DailyPrice { AssetId = 1, Date = new DateOnly(2026, 04, 01), Close = 78m }
+            }
+        };
+        var indicatorRepository = new FakeIndicatorRepository
+        {
+            Indicators = new[]
+            {
+                new DailyIndicator { AssetId = 1, Date = new DateOnly(2026, 04, 02), Sma50 = 79m, Sma200 = 75m, Rsi14 = 55m, Drawdown52WeeksPercent = -8m },
+                new DailyIndicator { AssetId = 1, Date = new DateOnly(2026, 04, 01), Sma50 = 78m, Sma200 = 74m, Rsi14 = 52m, Drawdown52WeeksPercent = -9m }
+            }
+        };
+        var signalRepository = new FakeSignalRepository
+        {
+            Signals = new[]
+            {
+                new DailySignal { AssetId = 1, Date = new DateOnly(2026, 04, 02), Score = 65, SignalLabel = Domain.Enums.SignalLabel.Hold },
+                new DailySignal { AssetId = 1, Date = new DateOnly(2026, 04, 01), Score = 72, SignalLabel = Domain.Enums.SignalLabel.BuyZone }
+            }
+        };
+
+        var service = new DashboardService(
+            new FakeAssetRepository(),
+            priceRepository,
+            indicatorRepository,
+            signalRepository,
+            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new DashboardOptions { HistoryDays = 252 }));
+
+        var result = await service.GetSignalHistoryAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(new DateOnly(2026, 04, 02), result[0].Date);
+        Assert.Equal(80m, result[0].Close);
+        Assert.Equal(79m, result[0].Sma50);
+        Assert.Equal(75m, result[0].Sma200);
+        Assert.Equal(55m, result[0].Rsi14);
+        Assert.Equal(-8m, result[0].Drawdown52WeeksPercent);
+        Assert.Equal(65, result[0].Score);
+        Assert.Equal(Domain.Enums.SignalLabel.Hold, result[0].SignalLabel);
+    }
+
     private static DashboardService CreateService(FakePriceRepository priceRepository, int historyDays)
     {
         return new DashboardService(
@@ -67,6 +116,7 @@ public sealed class DashboardServiceTests
     private sealed class FakePriceRepository : IPriceRepository
     {
         public int LastRequestedMaxRows { get; private set; }
+        public IReadOnlyList<DailyPrice> Prices { get; init; } = Array.Empty<DailyPrice>();
 
         public Task UpsertDailyPricesAsync(int assetId, IReadOnlyList<PriceBar> prices, CancellationToken cancellationToken = default)
         {
@@ -76,7 +126,7 @@ public sealed class DashboardServiceTests
         public Task<IReadOnlyList<DailyPrice>> GetPricesAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
         {
             LastRequestedMaxRows = maxRows;
-            return Task.FromResult<IReadOnlyList<DailyPrice>>(Array.Empty<DailyPrice>());
+            return Task.FromResult(Prices);
         }
 
         public Task<DailyPrice?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default)
@@ -87,6 +137,8 @@ public sealed class DashboardServiceTests
 
     private sealed class FakeIndicatorRepository : IIndicatorRepository
     {
+        public IReadOnlyList<DailyIndicator> Indicators { get; init; } = Array.Empty<DailyIndicator>();
+
         public Task UpsertIndicatorsAsync(int assetId, IReadOnlyList<DailyIndicator> indicators, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -96,10 +148,17 @@ public sealed class DashboardServiceTests
         {
             return Task.FromResult<DailyIndicator?>(null);
         }
+
+        public Task<IReadOnlyList<DailyIndicator>> GetIndicatorsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Indicators);
+        }
     }
 
     private sealed class FakeSignalRepository : ISignalRepository
     {
+        public IReadOnlyList<DailySignal> Signals { get; init; } = Array.Empty<DailySignal>();
+
         public Task UpsertSignalsAsync(int assetId, IReadOnlyList<DailySignal> signals, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -108,6 +167,11 @@ public sealed class DashboardServiceTests
         public Task<DailySignal?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<DailySignal?>(null);
+        }
+
+        public Task<IReadOnlyList<DailySignal>> GetSignalsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Signals);
         }
     }
 }
