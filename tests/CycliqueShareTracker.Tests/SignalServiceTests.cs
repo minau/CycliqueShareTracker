@@ -1,6 +1,7 @@
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using Xunit;
 
 namespace CycliqueShareTracker.Tests;
 
