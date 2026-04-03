@@ -253,7 +253,8 @@
                         pointHoverRadius: 5,
                         backgroundColor: '#7c3aed',
                         borderColor: '#7c3aed',
-                        order: 3
+                        borderWidth: 1,
+                        order: -10
                     },
                     {
                         label: 'SELL ZONE',
@@ -261,11 +262,12 @@
                         data: points.map(x => x.IsSellZone ? Number(x.Close) : null),
                         showLine: false,
                         pointStyle: 'triangle',
-                        pointRadius: 5,
-                        pointHoverRadius: 6,
-                        backgroundColor: '#dc2626',
-                        borderColor: '#dc2626',
-                        order: 3
+                        pointRadius: 6,
+                        pointHoverRadius: 7,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#f59e0b',
+                        borderWidth: 1,
+                        order: -10
                     }
                 ]
             },
