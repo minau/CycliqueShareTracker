@@ -13,6 +13,7 @@ using System.IO;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<AssetOptions>(builder.Configuration.GetSection(AssetOptions.SectionName));
+builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection(DashboardOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
 
