@@ -235,7 +235,7 @@
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: 'xy'
+                            mode: 'x'
                         },
                         zoom: {
                             wheel: {
@@ -244,7 +244,7 @@
                             pinch: {
                                 enabled: true
                             },
-                            mode: 'xy',
+                            mode: 'x',
                             onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart)
                         },
                         onPan: ({ chart }) => setYScaleToVisibleRange(chart),
@@ -253,9 +253,6 @@
                         limits: {
                             x: {
                                 minRange: 10
-                            },
-                            y: {
-                                minRange: 1
                             }
                         }
                     }
