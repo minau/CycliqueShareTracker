@@ -245,7 +245,9 @@
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: 'x'
+                            mode: 'x',
+                            onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
+                            onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
                         zoom: {
                             wheel: {
@@ -255,11 +257,9 @@
                                 enabled: true
                             },
                             mode: 'x',
+                            onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
                             onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
                         },
-                        onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                        onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                        onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
                         limits: {
                             x: {
                                 minRange: 10
