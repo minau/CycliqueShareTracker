@@ -94,7 +94,63 @@
             wickData.push({ x: x.Date, y: null });
         });
 
-        new Chart(document.getElementById('priceChart'), {
+        const yPaddingRatio = 0.05;
+        const minYSpan = 0.5;
+
+        const setYScaleToVisibleRange = chart => {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            if (!xScale || !yScale) {
+                return;
+            }
+
+            const xMin = Number(xScale.min);
+            const xMax = Number(xScale.max);
+            if (Number.isNaN(xMin) || Number.isNaN(xMax)) {
+                return;
+            }
+
+            const startIndex = Math.max(0, Math.floor(xMin));
+            const endIndex = Math.min(points.length - 1, Math.ceil(xMax));
+            if (startIndex > endIndex) {
+                return;
+            }
+
+            let visibleMin = Number.POSITIVE_INFINITY;
+            let visibleMax = Number.NEGATIVE_INFINITY;
+
+            for (let i = startIndex; i <= endIndex; i++) {
+                const low = Number(points[i].Low);
+                const high = Number(points[i].High);
+
+                if (Number.isFinite(low)) {
+                    visibleMin = Math.min(visibleMin, low);
+                }
+
+                if (Number.isFinite(high)) {
+                    visibleMax = Math.max(visibleMax, high);
+                }
+            }
+
+            if (!Number.isFinite(visibleMin) || !Number.isFinite(visibleMax)) {
+                return;
+            }
+
+            let span = visibleMax - visibleMin;
+            if (span < minYSpan) {
+                const center = (visibleMax + visibleMin) / 2;
+                span = minYSpan;
+                visibleMin = center - (span / 2);
+                visibleMax = center + (span / 2);
+            }
+
+            const padding = span * yPaddingRatio;
+            chart.options.scales.y.min = visibleMin - padding;
+            chart.options.scales.y.max = visibleMax + padding;
+            chart.update('none');
+        };
+
+        const chart = new Chart(document.getElementById('priceChart'), {
             type: 'bar',
             data: {
                 labels,
@@ -173,8 +229,10 @@
                             pinch: {
                                 enabled: true
                             },
-                            mode: 'xy'
+                            mode: 'xy',
+                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart)
                         },
+                        onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart),
                         limits: {
                             x: {
                                 minRange: 10
@@ -188,9 +246,14 @@
                 scales: {
                     x: {
                         ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {
+                        grace: '5%'
                     }
                 }
             }
         });
+
+        setYScaleToVisibleRange(chart);
     })();
 </script>
