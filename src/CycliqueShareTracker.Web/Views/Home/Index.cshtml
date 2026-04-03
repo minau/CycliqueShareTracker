@@ -94,7 +94,7 @@
             wickData.push({ x: x.Date, y: null });
         });
 
-        const yPaddingRatio = 0.05;
+        const yPaddingRatio = 0;
         const minYSpan = 0.5;
         const yUpdateEpsilon = 0.0001;
 
@@ -271,9 +271,7 @@
                     x: {
                         ticks: { maxTicksLimit: 8 }
                     },
-                    y: {
-                        grace: '5%'
-                    }
+                    y: {}
                 }
             }
         });
