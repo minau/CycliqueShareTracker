@@ -6,13 +6,21 @@ using CycliqueShareTracker.Infrastructure.Persistence;
 using CycliqueShareTracker.Web.Background;
 using CycliqueShareTracker.Web.Configuration;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<AssetOptions>(builder.Configuration.GetSection(AssetOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
+
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/var/cyclique/keys";
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("CycliqueShareTracker");
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -45,7 +53,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_HTTPS_PORT"]))
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
 app.UseRouting();

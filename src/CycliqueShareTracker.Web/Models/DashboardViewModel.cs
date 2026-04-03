@@ -15,9 +15,10 @@ public sealed class DashboardViewModel
     public decimal? Drawdown52WeeksPercent { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
+    public string? Notice { get; init; }
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
-    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot)
+    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string? notice = null)
     {
         return new DashboardViewModel
         {
@@ -32,6 +33,7 @@ public sealed class DashboardViewModel
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
             Score = snapshot.Score,
             Signal = snapshot.SignalLabel?.ToString().ToUpperInvariant().Replace("NOBUY", "NO BUY").Replace("BUYZONE", "BUY ZONE") ?? "N/A",
+            Notice = notice,
             RecentPrices = snapshot.RecentPrices
         };
     }

@@ -9,6 +9,8 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    volumes:
+      - dpkeys:/var/cyclique/keys
   db:
     image: postgres:16
     container_name: cyclique_db
@@ -30,3 +32,4 @@ services:
 
 volumes:
   pgdata:
+  dpkeys:

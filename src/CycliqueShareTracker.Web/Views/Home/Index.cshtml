@@ -1,5 +1,12 @@
 @model DashboardViewModel
 
+@if (!string.IsNullOrWhiteSpace(Model.Notice))
+{
+    <section class="card">
+        <p>@Model.Notice</p>
+    </section>
+}
+
 <section class="grid">
     <div class="card">
         <h2>@Model.AssetName (@Model.AssetSymbol)</h2>
