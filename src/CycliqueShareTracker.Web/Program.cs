@@ -37,11 +37,7 @@ builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
+MigrateDatabaseWithRetry(app);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -61,3 +57,30 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+static void MigrateDatabaseWithRetry(WebApplication app)
+{
+    const int maxAttempts = 10;
+    var delay = TimeSpan.FromSeconds(3);
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Database.Migrate();
+            app.Logger.LogInformation("Database migration completed.");
+            return;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            app.Logger.LogWarning(ex, "Database migration attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelaySeconds}s.", attempt, maxAttempts, delay.TotalSeconds);
+            Thread.Sleep(delay);
+        }
+    }
+
+    using var finalScope = app.Services.CreateScope();
+    var finalDb = finalScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    finalDb.Database.Migrate();
+}
