@@ -40,7 +40,7 @@
 
 <section class="card">
     <div class="section-header">
-        <h3>Prix & tendances (SMA50 / SMA200)</h3>
+        <h3>Bougies & tendances (SMA50 / SMA200)</h3>
         <a asp-controller="Home" asp-action="SignalHistory">Voir l'historique des signaux</a>
     </div>
     <canvas id="priceChart" height="110"></canvas>
@@ -74,6 +74,9 @@
     var chartDataJson = JsonSerializer.Serialize(Model.ChartPoints);
 }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
 <script>
     (() => {
         const points = @Html.Raw(chartDataJson);
@@ -81,17 +84,65 @@
             return;
         }
 
-        const labels = points.map(x => x.Date);
-        const buyZonePoints = points.map(x => x.IsBuyZone ? x.Close : null);
+        const candleData = points.map(x => ({
+            x: x.Date,
+            o: Number(x.Open),
+            h: Number(x.High),
+            l: Number(x.Low),
+            c: Number(x.Close)
+        }));
+
+        const buyZonePoints = points
+            .filter(x => x.IsBuyZone)
+            .map(x => ({ x: x.Date, y: Number(x.Close) }));
+
         new Chart(document.getElementById('priceChart'), {
-            type: 'line',
+            type: 'candlestick',
             data: {
-                labels,
                 datasets: [
-                    { label: 'Close', data: points.map(x => x.Close), borderColor: '#111827', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'SMA 50', data: points.map(x => x.Sma50), borderColor: '#2563eb', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'SMA 200', data: points.map(x => x.Sma200), borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0, tension: 0.15 },
-                    { label: 'BUY ZONE', data: buyZonePoints, showLine: false, pointRadius: 4, pointHoverRadius: 5, backgroundColor: '#16a34a', borderColor: '#16a34a' }
+                    {
+                        label: 'Bougies',
+                        data: candleData,
+                        color: {
+                            up: '#16a34a',
+                            down: '#dc2626',
+                            unchanged: '#6b7280'
+                        },
+                        borderColor: {
+                            up: '#16a34a',
+                            down: '#dc2626',
+                            unchanged: '#6b7280'
+                        }
+                    },
+                    {
+                        label: 'SMA 50',
+                        type: 'line',
+                        data: points.map(x => ({ x: x.Date, y: x.Sma50 === null ? null : Number(x.Sma50) })),
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'SMA 200',
+                        type: 'line',
+                        data: points.map(x => ({ x: x.Date, y: x.Sma200 === null ? null : Number(x.Sma200) })),
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'BUY ZONE',
+                        type: 'scatter',
+                        data: buyZonePoints,
+                        pointRadius: 4,
+                        pointHoverRadius: 5,
+                        backgroundColor: '#16a34a',
+                        borderColor: '#16a34a'
+                    }
                 ]
             },
             options: {
@@ -100,6 +151,8 @@
                 plugins: { legend: { position: 'top' } },
                 scales: {
                     x: {
+                        type: 'time',
+                        time: { unit: 'month' },
                         ticks: { maxTicksLimit: 8 }
                     }
                 }
