@@ -57,7 +57,17 @@
         <h3>Bougies & tendances (SMA50 / SMA200)</h3>
         <a asp-controller="Home" asp-action="SignalHistory">Voir l'historique des signaux</a>
     </div>
-    <canvas id="priceChart" height="110"></canvas>
+    <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
+        <div class="chart-stack">
+            <div class="chart-panel chart-panel-main">
+                <canvas id="priceChart"></canvas>
+            </div>
+            <div class="chart-panel chart-panel-rsi">
+                <canvas id="rsiChart"></canvas>
+            </div>
+        </div>
+        <div id="chartResizeHandle" class="chart-resize-handle" title="Redimensionner le graphique"></div>
+    </div>
 </section>
 
 <section class="card">
@@ -101,6 +111,7 @@
         const candleBodies = points.map(x => [Number(x.Open), Number(x.Close)]);
         const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
         const wickData = [];
+        const rsiData = points.map(x => x.Rsi14 === null ? null : Number(x.Rsi14));
 
         points.forEach(x => {
             wickData.push({ x: x.Date, y: Number(x.Low) });
@@ -201,7 +212,96 @@
             }
         };
 
-        const chart = new Chart(document.getElementById('priceChart'), {
+        const syncXAxis = (sourceChart, targetChart) => {
+            const sourceScale = sourceChart.scales.x;
+            if (!sourceScale) {
+                return;
+            }
+
+            targetChart.options.scales.x.min = sourceScale.min;
+            targetChart.options.scales.x.max = sourceScale.max;
+            targetChart.update('none');
+        };
+
+        const chartContainer = document.getElementById('chartContainer');
+        const chartResizeHandle = document.getElementById('chartResizeHandle');
+        const chartHeightStorageKey = 'cyclique.dashboard.chart.height';
+
+        const toIntOrFallback = (value, fallback) => {
+            const parsed = Number.parseInt(value, 10);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        };
+
+        const defaultChartHeight = toIntOrFallback(chartContainer?.dataset.defaultHeight, 560);
+        const minChartHeight = toIntOrFallback(chartContainer?.dataset.minHeight, 360);
+        const configuredMaxChartHeight = toIntOrFallback(chartContainer?.dataset.maxHeight, 920);
+
+        const getMaxChartHeight = () => {
+            const viewportMax = Math.floor(window.innerHeight * 0.85);
+            return Math.max(minChartHeight, Math.min(configuredMaxChartHeight, viewportMax));
+        };
+
+        const clampChartHeight = value => Math.min(getMaxChartHeight(), Math.max(minChartHeight, value));
+
+        const applyChartContainerHeight = (heightPx, persist = false) => {
+            if (!chartContainer) {
+                return;
+            }
+
+            const clamped = clampChartHeight(heightPx);
+            chartContainer.style.height = `${clamped}px`;
+            if (persist) {
+                localStorage.setItem(chartHeightStorageKey, String(clamped));
+            }
+        };
+
+        const initializeChartContainerHeight = () => {
+            if (!chartContainer) {
+                return;
+            }
+
+            const stored = toIntOrFallback(localStorage.getItem(chartHeightStorageKey), defaultChartHeight);
+            applyChartContainerHeight(stored, false);
+        };
+
+        const sharedZoomPluginOptions = (currentChart, siblingChart, shouldAdjustYAxis) => ({
+            pan: {
+                enabled: false,
+                mode: 'x'
+            },
+            zoom: {
+                wheel: {
+                    enabled: true
+                },
+                pinch: {
+                    enabled: true
+                },
+                mode: 'x',
+                onZoom: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                },
+                onZoomComplete: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingChart);
+                }
+            },
+            limits: {
+                x: {
+                    minRange: 10
+                }
+            }
+        });
+
+        initializeChartContainerHeight();
+
+        let priceChart;
+        let rsiChart;
+
+        priceChart = new Chart(document.getElementById('priceChart'), {
             type: 'bar',
             data: {
                 labels,
@@ -278,7 +378,7 @@
                 ]
             },
             options: {
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'top' },
@@ -314,30 +414,7 @@
                             }
                         }
                     },
-                    zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: 'x',
-                            onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                            onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'x',
-                            onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
-                        },
-                        limits: {
-                            x: {
-                                minRange: 10
-                            }
-                        }
-                    }
+                    zoom: {}
                 },
                 scales: {
                     x: {
@@ -348,6 +425,209 @@
             }
         });
 
-        setYScaleToVisibleRange(chart, true);
+        rsiChart = new Chart(document.getElementById('rsiChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'RSI 14',
+                        data: rsiData,
+                        borderColor: '#9333ea',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Seuil 70',
+                        data: labels.map(() => 70),
+                        borderColor: '#dc2626',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Seuil 30',
+                        data: labels.map(() => 30),
+                        borderColor: '#16a34a',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 10
+                        }
+                    }
+                }
+            }
+        });
+
+
+
+        const configureMouseDragPan = () => {
+            if (!priceChart || !rsiChart) {
+                return;
+            }
+
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartMin = 0;
+            let dragStartMax = 0;
+
+            const getVisibleRange = () => {
+                const xScale = priceChart.scales.x;
+                if (!xScale) {
+                    return null;
+                }
+
+                const min = Number(xScale.min);
+                const max = Number(xScale.max);
+                if (Number.isNaN(min) || Number.isNaN(max)) {
+                    return null;
+                }
+
+                return { min, max, xScale };
+            };
+
+            const applySharedRange = (min, max) => {
+                priceChart.options.scales.x.min = min;
+                priceChart.options.scales.x.max = max;
+                rsiChart.options.scales.x.min = min;
+                rsiChart.options.scales.x.max = max;
+                priceChart.update('none');
+                rsiChart.update('none');
+                setYScaleToVisibleRange(priceChart, true);
+            };
+
+            const onMouseMove = event => {
+                if (!isDragging) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                const pixelSpan = currentRange.xScale.right - currentRange.xScale.left;
+                if (pixelSpan <= 0) {
+                    return;
+                }
+
+                const indexSpan = dragStartMax - dragStartMin;
+                if (indexSpan <= 0) {
+                    return;
+                }
+
+                const deltaX = event.clientX - dragStartX;
+                const shift = -(deltaX / pixelSpan) * indexSpan;
+                const maxIndex = labels.length - 1;
+                const maxMin = Math.max(0, maxIndex - indexSpan);
+                const targetMin = Math.min(maxMin, Math.max(0, dragStartMin + shift));
+                const targetMax = targetMin + indexSpan;
+
+                applySharedRange(targetMin, targetMax);
+            };
+
+            const stopDragging = () => {
+                if (!isDragging) {
+                    return;
+                }
+
+                isDragging = false;
+                document.body.classList.remove('chart-pan-active');
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', stopDragging);
+            };
+
+            const startDragging = event => {
+                if (event.button !== 0) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                dragStartX = event.clientX;
+                dragStartMin = currentRange.min;
+                dragStartMax = currentRange.max;
+                isDragging = true;
+                document.body.classList.add('chart-pan-active');
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', stopDragging);
+            };
+
+            const priceCanvas = document.getElementById('priceChart');
+            const rsiCanvas = document.getElementById('rsiChart');
+            priceCanvas?.addEventListener('mousedown', startDragging);
+            rsiCanvas?.addEventListener('mousedown', startDragging);
+        };
+
+        const configureChartResizeHandle = () => {
+            if (!chartContainer || !chartResizeHandle || !window.matchMedia('(pointer:fine)').matches) {
+                return;
+            }
+
+            let startY = 0;
+            let startHeight = 0;
+
+            const onPointerMove = event => {
+                const delta = event.clientY - startY;
+                applyChartContainerHeight(startHeight + delta, false);
+                priceChart.resize();
+                rsiChart.resize();
+            };
+
+            const onPointerUp = () => {
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', onPointerUp);
+                chartContainer.classList.remove('is-resizing');
+                applyChartContainerHeight(chartContainer.clientHeight, true);
+                priceChart.resize();
+                rsiChart.resize();
+            };
+
+            chartResizeHandle.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                startY = event.clientY;
+                startHeight = chartContainer.getBoundingClientRect().height;
+                chartContainer.classList.add('is-resizing');
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            });
+
+            window.addEventListener('resize', () => {
+                applyChartContainerHeight(chartContainer.clientHeight || defaultChartHeight, false);
+                priceChart.resize();
+                rsiChart.resize();
+            });
+        };
+
+        priceChart.options.plugins.zoom = sharedZoomPluginOptions(priceChart, rsiChart, true);
+        rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, priceChart, false);
+
+        configureChartResizeHandle();
+        configureMouseDragPan();
+        setYScaleToVisibleRange(priceChart, true);
+        syncXAxis(priceChart, rsiChart);
     })();
 </script>

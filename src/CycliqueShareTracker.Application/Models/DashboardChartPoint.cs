@@ -10,6 +10,7 @@ public sealed record DashboardChartPoint(
     decimal Close,
     decimal? Sma50,
     decimal? Sma200,
+    decimal? Rsi14,
     int? EntryScore,
     string? EntryPrimaryReason,
     IReadOnlyList<ScoreFactorDetail> EntryScoreFactors,
