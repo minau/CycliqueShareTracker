@@ -46,6 +46,16 @@ public sealed class DashboardService : IDashboardService
         var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
         var recentIndicators = await _indicatorRepository.GetIndicatorsAsync(asset.Id, historyDays, cancellationToken);
         var recentSignals = await _signalRepository.GetSignalsAsync(asset.Id, historyDays, cancellationToken);
+        var orderedIndicatorsDesc = recentIndicators.OrderByDescending(x => x.Date).ToList();
+        var latestMacdLine = orderedIndicatorsDesc
+            .Select(x => x.MacdLine)
+            .FirstOrDefault(x => x.HasValue);
+        var latestMacdSignalLine = orderedIndicatorsDesc
+            .Select(x => x.MacdSignalLine)
+            .FirstOrDefault(x => x.HasValue);
+        var latestMacdHistogram = orderedIndicatorsDesc
+            .Select(x => x.MacdHistogram)
+            .FirstOrDefault(x => x.HasValue);
 
         var ordered = recentPrices.OrderByDescending(x => x.Date).ToList();
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
@@ -110,9 +120,9 @@ public sealed class DashboardService : IDashboardService
             latestIndicator?.Sma200,
             latestIndicator?.Rsi14,
             latestIndicator?.Drawdown52WeeksPercent,
-            latestIndicator?.MacdLine,
-            latestIndicator?.MacdSignalLine,
-            latestIndicator?.MacdHistogram,
+            latestIndicator?.MacdLine ?? latestMacdLine,
+            latestIndicator?.MacdSignalLine ?? latestMacdSignalLine,
+            latestIndicator?.MacdHistogram ?? latestMacdHistogram,
             latestSignal?.Score,
             latestSignal?.SignalLabel,
             entryPrimaryReason,
