@@ -14,8 +14,7 @@ public sealed class DataSyncService : IDataSyncService
     private readonly ISignalRepository _signalRepository;
     private readonly IAssetRepository _assetRepository;
     private readonly IIndicatorCalculator _indicatorCalculator;
-    private readonly ISignalService _signalService;
-    private readonly IExitSignalService _exitSignalService;
+    private readonly ISignalTimelineService _signalTimelineService;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly ILogger<DataSyncService> _logger;
 
@@ -26,8 +25,7 @@ public sealed class DataSyncService : IDataSyncService
         ISignalRepository signalRepository,
         IAssetRepository assetRepository,
         IIndicatorCalculator indicatorCalculator,
-        ISignalService signalService,
-        IExitSignalService exitSignalService,
+        ISignalTimelineService signalTimelineService,
         IOptions<WatchlistOptions> watchlistOptions,
         ILogger<DataSyncService> logger)
     {
@@ -37,8 +35,7 @@ public sealed class DataSyncService : IDataSyncService
         _signalRepository = signalRepository;
         _assetRepository = assetRepository;
         _indicatorCalculator = indicatorCalculator;
-        _signalService = signalService;
-        _exitSignalService = exitSignalService;
+        _signalTimelineService = signalTimelineService;
         _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
         _logger = logger;
     }
@@ -116,27 +113,20 @@ public sealed class DataSyncService : IDataSyncService
 
         await _indicatorRepository.UpsertIndicatorsAsync(asset.Id, indicators, cancellationToken);
 
-        var signals = new List<DailySignal>(computed.Count);
+        var computedByDate = computed.ToDictionary(x => x.Date);
+        var timeline = _signalTimelineService.BuildSignalTimeline(computedByDate, includeMacdConfirmation: true);
 
-        for (var i = 0; i < computed.Count; i++)
+        var signals = timeline.Select(item => new DailySignal
         {
-            var item = computed[i];
-            var previous = i > 0 ? computed[i - 1] : null;
-            var signal = _signalService.BuildSignal(item);
-            var exitSignal = _exitSignalService.BuildExitSignal(item, previous);
-
-            signals.Add(new DailySignal
-            {
-                AssetId = asset.Id,
-                Date = item.Date,
-                Score = signal.Score,
-                SignalLabel = signal.Label,
-                Explanation = signal.Explanation,
-                ExitScore = exitSignal.ExitScore,
-                ExitSignalLabel = exitSignal.ExitSignal,
-                ExitPrimaryReason = exitSignal.PrimaryExitReason
-            });
-        }
+            AssetId = asset.Id,
+            Date = item.Key,
+            Score = item.Value.Entry.Score,
+            SignalLabel = item.Value.Entry.Label,
+            Explanation = item.Value.Entry.Explanation,
+            ExitScore = item.Value.Exit.ExitScore,
+            ExitSignalLabel = item.Value.Exit.ExitSignal,
+            ExitPrimaryReason = item.Value.Exit.PrimaryExitReason
+        }).ToList();
 
         await _signalRepository.UpsertSignalsAsync(asset.Id, signals, cancellationToken);
 

@@ -1,11 +1,20 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Domain.Enums;
+using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Application.Services;
 
 public sealed class ExitSignalService : IExitSignalService
 {
+    private const int TrimThreshold = 45;
+    private readonly SignalStrategyOptions _strategyOptions;
+
+    public ExitSignalService(IOptions<SignalStrategyOptions> strategyOptions)
+    {
+        _strategyOptions = strategyOptions.Value;
+    }
+
     public ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true)
     {
         decimal? distanceToSma50Percent = null;
@@ -14,111 +23,96 @@ public sealed class ExitSignalService : IExitSignalService
             distanceToSma50Percent = ((current.Close / current.Sma50.Value) - 1m) * 100m;
         }
 
+        var isBelowSma50 = current.Sma50.HasValue && current.Close < current.Sma50.Value;
+        var isBelowSma200 = current.Sma200.HasValue && current.Close < current.Sma200.Value;
+        var isCloseWeakening = current.PreviousClose.HasValue && current.Close < current.PreviousClose.Value;
+        var isRsiDeclining = previous?.Rsi14.HasValue == true && current.Rsi14.HasValue && current.Rsi14.Value < previous.Rsi14.Value;
+
         var factors = new List<ScoreFactorDetail>
         {
-            new(
-                "RSI14 élevé (>= 75)",
-                25,
-                current.Rsi14 is >= 75m,
-                "Risque de surchauffe court terme."),
-            new(
-                "Prix fortement au-dessus de la SMA50 (> 12%)",
-                20,
-                distanceToSma50Percent.HasValue && distanceToSma50Percent.Value >= 12m,
-                "Extension de prix potentiellement excessive."),
-            new(
-                "Excès haussier en perte de vitesse",
-                20,
-                previous is not null &&
-                current.PreviousClose.HasValue &&
-                current.Close < current.PreviousClose.Value &&
-                previous.Rsi14 is >= 70m &&
-                current.Rsi14.HasValue &&
-                current.Rsi14.Value < previous.Rsi14.Value,
-                "RSI en baisse après phase de surachat."),
-            new(
-                "Dégradation du momentum (clôture sous la veille)",
-                15,
-                previous is not null && current.PreviousClose.HasValue && current.Close < current.PreviousClose.Value,
-                "Premier signal d'essoufflement."),
-            new(
-                "Cassure sous SMA50",
-                25,
-                current.Sma50.HasValue && current.Close < current.Sma50.Value,
-                "Alerte sur la tendance intermédiaire."),
-            new(
-                "Cassure sous SMA200",
-                30,
-                current.Sma200.HasValue && current.Close < current.Sma200.Value,
-                "Rupture de tendance de fond.")
+            new("Cassure sous SMA50", 35, isBelowSma50, "Rupture de la tendance intermédiaire."),
+            new("Cassure sous SMA200", 25, isBelowSma200, "Risque de retournement de fond."),
+            new("Affaiblissement journalier (clôture sous la veille)", 15, isCloseWeakening, "Momentum court terme en dégradation."),
+            new("RSI14 au-dessus de 65", 15, current.Rsi14 is >= 65m, "Contexte de prise de profit."),
+            new("RSI14 en baisse vs veille", 10, isRsiDeclining, "Perte progressive de momentum.")
         };
 
-        if (includeMacdInScoring)
+        if (distanceToSma50Percent.HasValue)
         {
-            decimal? currentMacdSpread = ComputeMacdSpread(current);
-            decimal? previousMacdSpread = previous is null ? null : ComputeMacdSpread(previous);
-
             factors.Add(new(
-                "Momentum en ralentissement : l'histogramme MACD diminue",
-                8,
-                current.MacdHistogram.HasValue &&
-                previous?.MacdHistogram.HasValue == true &&
-                current.MacdHistogram.Value < previous.MacdHistogram.Value,
-                "Le momentum haussier perd en intensité."));
-            factors.Add(new(
-                "Le MACD se rapproche de sa ligne signal, signe d'essoufflement",
-                5,
-                currentMacdSpread.HasValue &&
-                previousMacdSpread.HasValue &&
-                Math.Abs(currentMacdSpread.Value) < Math.Abs(previousMacdSpread.Value) &&
-                previousMacdSpread.Value > 0,
-                "Convergence MACD/Signal en fin d'impulsion haussière."));
-            factors.Add(new(
-                "Signal MACD baissier : la ligne MACD est passée sous la ligne signal",
-                12,
-                currentMacdSpread.HasValue &&
-                previousMacdSpread.HasValue &&
-                previousMacdSpread.Value >= 0 &&
-                currentMacdSpread.Value < 0,
-                "Risque de retournement à la baisse."));
-            factors.Add(new(
-                "Confirmation baissière : l'histogramme MACD est désormais négatif",
-                6,
-                current.MacdHistogram.HasValue && current.MacdHistogram.Value < 0,
-                "Momentum baissier désormais dominant."));
+                "Extension extrême au-dessus de la SMA50 (> 10%)",
+                10,
+                distanceToSma50Percent.Value > 10m,
+                "Excès haussier potentiellement en fin de cycle."));
         }
 
-        var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
+        var score = Math.Clamp(factors.Where(x => x.Triggered).Sum(x => x.Points), 0, 100);
 
-        score = Math.Clamp(score, 0, 100);
+        var trendWeakeningFilterPassed = isBelowSma50 || (isCloseWeakening && (isRsiDeclining || isBelowSma200));
+        var rsiFilterPassed = current.Rsi14.HasValue && current.Rsi14.Value >= _strategyOptions.MinRsiForSell;
+        var applyMacdConfirmation = includeMacdInScoring && _strategyOptions.EnableMacdConfirmation;
+        var macdFilterPassed = !applyMacdConfirmation
+            || (current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value);
 
-        var label = score switch
+        var isSellValidated = score >= _strategyOptions.SellScoreThreshold
+            && trendWeakeningFilterPassed
+            && rsiFilterPassed
+            && macdFilterPassed;
+
+        var label = isSellValidated
+            ? ExitSignalLabel.SellZone
+            : score >= TrimThreshold
+                ? ExitSignalLabel.TrimTakeProfit
+                : ExitSignalLabel.Hold;
+
+        var validationReasons = new List<string>();
+        if (trendWeakeningFilterPassed)
         {
-            <= 34 => ExitSignalLabel.Hold,
-            <= 64 => ExitSignalLabel.TrimTakeProfit,
-            _ => ExitSignalLabel.SellZone
-        };
-
-        var mainReason = factors[5].Triggered
-            ? "Cassure technique suggérant une sortie."
-            : factors[4].Triggered
-                ? "Dégradation de tendance après phase haussière."
-                : (factors[0].Triggered && factors[1].Triggered)
-                    ? "Surchauffe de court terme."
-                    : label == ExitSignalLabel.TrimTakeProfit
-                        ? "Zone de prise de profit."
-                        : "Aucun signal de sortie fort détecté.";
-
-        return new ExitSignalResult(score, label, mainReason, factors);
-    }
-
-    private static decimal? ComputeMacdSpread(ComputedIndicator indicator)
-    {
-        if (!indicator.MacdLine.HasValue || !indicator.MacdSignalLine.HasValue)
-        {
-            return null;
+            validationReasons.Add("affaiblissement de tendance validé");
         }
 
-        return indicator.MacdLine.Value - indicator.MacdSignalLine.Value;
+        if (rsiFilterPassed)
+        {
+            validationReasons.Add($"RSI >= {_strategyOptions.MinRsiForSell}");
+        }
+
+        if (applyMacdConfirmation && macdFilterPassed)
+        {
+            validationReasons.Add("confirmation MACD baissière");
+        }
+
+        if (score >= _strategyOptions.SellScoreThreshold)
+        {
+            validationReasons.Add($"score >= {_strategyOptions.SellScoreThreshold}");
+        }
+
+        var blockedReasons = new List<string>();
+        if (!trendWeakeningFilterPassed)
+        {
+            blockedReasons.Add("pas de cassure SMA50 ni affaiblissement clair");
+        }
+
+        if (!rsiFilterPassed)
+        {
+            blockedReasons.Add($"RSI trop bas pour un SELL (< {_strategyOptions.MinRsiForSell})");
+        }
+
+        if (score < _strategyOptions.SellScoreThreshold)
+        {
+            blockedReasons.Add($"score insuffisant (< {_strategyOptions.SellScoreThreshold})");
+        }
+
+        if (applyMacdConfirmation && !macdFilterPassed)
+        {
+            blockedReasons.Add("confirmation MACD baissière absente");
+        }
+
+        var primaryReason = isSellValidated
+            ? $"SELL validé : {string.Join(" + ", validationReasons)}."
+            : blockedReasons.Count > 0
+                ? $"SELL non validé : {string.Join(" + ", blockedReasons)}."
+                : "Aucun signal de sortie fort détecté.";
+
+        return new ExitSignalResult(score, label, primaryReason, factors);
     }
 }

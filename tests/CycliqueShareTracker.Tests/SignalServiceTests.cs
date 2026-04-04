@@ -1,151 +1,77 @@
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using Microsoft.Extensions.Options;
 using System;
-using System.Linq;
 using Xunit;
 
 namespace CycliqueShareTracker.Tests;
 
 public class SignalServiceTests
 {
-    private readonly SignalService _service = new();
+    private static SignalService CreateService(SignalStrategyOptions? options = null)
+        => new(Options.Create(options ?? new SignalStrategyOptions()));
 
     [Fact]
-    public void BuildSignal_ShouldReturnBuyZone_WhenMostCriteriaAreMet()
+    public void BuildSignal_ShouldReturnBuyZone_WhenAllFiltersPassAndScoreIsHigh()
     {
+        var service = CreateService();
         var indicator = new ComputedIndicator(
             DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 60,
-            Sma200: 50,
-            Rsi14: 45,
-            Drawdown52WeeksPercent: -10,
-            Close: 61,
-            PreviousClose: 59,
+            Sma50: 120,
+            Sma200: 100,
+            Rsi14: 52,
+            Drawdown52WeeksPercent: -8,
+            Close: 121,
+            PreviousClose: 118,
             MacdLine: 1.2m,
-            MacdSignalLine: 1.0m,
-            MacdHistogram: 0.2m,
-            PreviousMacdHistogram: 0.1m);
+            MacdSignalLine: 0.9m);
 
-        var result = _service.BuildSignal(indicator);
+        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
 
         Assert.Equal(100, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
-        Assert.Equal(9, result.ScoreFactors.Count);
-        Assert.Equal(7, result.ScoreFactors.Count(x => x.Triggered));
-        Assert.Equal("Tendance haussière de fond avec repli modéré.", result.PrimaryReason);
+        Assert.Contains("BUY validé", result.PrimaryReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void BuildSignal_ShouldMapNoBuy_WhenScoreBelow40()
+    public void BuildSignal_ShouldNotReturnBuyZone_WhenRsiIsAboveConfiguredLimit()
     {
+        var service = CreateService();
         var indicator = new ComputedIndicator(
             DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: null,
+            Sma50: 120,
             Sma200: 100,
-            Rsi14: 20,
-            Drawdown52WeeksPercent: -30,
-            Close: 90,
-            PreviousClose: 100,
-            MacdLine: -0.5m,
-            MacdSignalLine: -0.2m,
-            MacdHistogram: -0.3m,
-            PreviousMacdHistogram: -0.1m);
+            Rsi14: 66,
+            Drawdown52WeeksPercent: -8,
+            Close: 121,
+            PreviousClose: 118,
+            MacdLine: 1.2m,
+            MacdSignalLine: 0.9m);
 
-        var result = _service.BuildSignal(indicator);
+        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
 
-        Assert.Equal(0, result.Score);
-        Assert.Equal(SignalLabel.NoBuy, result.Label);
-        Assert.Equal("Conditions d'entrée insuffisantes pour le moment.", result.PrimaryReason);
+        Assert.NotEqual(SignalLabel.BuyZone, result.Label);
+        Assert.Contains("RSI trop élevé", result.PrimaryReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void BuildSignal_ShouldMapWatch_WhenScoreBetween40And69()
+    public void BuildSignal_ShouldIgnoreMacdConfirmation_WhenDisabledFromOption()
     {
+        var service = CreateService(new SignalStrategyOptions { EnableMacdConfirmation = false });
         var indicator = new ComputedIndicator(
             DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: null,
+            Sma50: 120,
             Sma200: 100,
-            Rsi14: 40,
-            Drawdown52WeeksPercent: -30,
-            Close: 110,
-            PreviousClose: 100,
-            MacdLine: 0.5m,
-            MacdSignalLine: 0.4m,
-            MacdHistogram: 0.1m,
-            PreviousMacdHistogram: 0.2m);
+            Rsi14: 50,
+            Drawdown52WeeksPercent: -8,
+            Close: 121,
+            PreviousClose: 118,
+            MacdLine: 0.1m,
+            MacdSignalLine: 0.4m);
 
-        var result = _service.BuildSignal(indicator);
+        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
 
-        Assert.Equal(58, result.Score);
-        Assert.Equal(SignalLabel.Watch, result.Label);
-    }
-
-    [Fact]
-    public void BuildSignal_ShouldMapBuyZone_WhenScoreAtLeast70()
-    {
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 101,
-            Sma200: 100,
-            Rsi14: 40,
-            Drawdown52WeeksPercent: -30,
-            Close: 110,
-            PreviousClose: 100,
-            MacdLine: 0.7m,
-            MacdSignalLine: 0.5m,
-            MacdHistogram: 0.2m,
-            PreviousMacdHistogram: 0.1m);
-
-        var result = _service.BuildSignal(indicator);
-
-        Assert.Equal(94, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
-    }
-
-    [Fact]
-    public void BuildSignal_ShouldStayBuyZone_WhenRsiOutOfRangeButOtherCriteriaStrong()
-    {
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 105,
-            Sma200: 100,
-            Rsi14: 70,
-            Drawdown52WeeksPercent: -12,
-            Close: 106,
-            PreviousClose: 103,
-            MacdLine: 0.4m,
-            MacdSignalLine: 0.5m,
-            MacdHistogram: -0.1m,
-            PreviousMacdHistogram: 0.0m);
-
-        var result = _service.BuildSignal(indicator);
-
-        Assert.Equal(74, result.Score);
-        Assert.Equal(SignalLabel.BuyZone, result.Label);
-    }
-
-    [Fact]
-    public void BuildSignal_ShouldIgnoreMacdFactors_WhenOptionIsDisabled()
-    {
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 105,
-            Sma200: 100,
-            Rsi14: 70,
-            Drawdown52WeeksPercent: -12,
-            Close: 106,
-            PreviousClose: 103,
-            MacdLine: 0.4m,
-            MacdSignalLine: 0.5m,
-            MacdHistogram: -0.1m,
-            PreviousMacdHistogram: 0.0m);
-
-        var result = _service.BuildSignal(indicator, includeMacdInScoring: false);
-
-        Assert.Equal(80, result.Score);
-        Assert.Equal(SignalLabel.BuyZone, result.Label);
-        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("MACD", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("histogramme", StringComparison.OrdinalIgnoreCase));
     }
 }
