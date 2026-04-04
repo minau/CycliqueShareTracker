@@ -46,20 +46,22 @@ public sealed class DashboardService : IDashboardService
 
     public async Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
-        var tasks = _watchlist.Select(async trackedAsset =>
+        var results = new List<AssetSnapshotResult>(_watchlist.Count);
+
+        foreach (var trackedAsset in _watchlist)
         {
             try
             {
                 var snapshot = await GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
-                return new AssetSnapshotResult(trackedAsset, snapshot, null);
+                results.Add(new AssetSnapshotResult(trackedAsset, snapshot, null));
             }
             catch (Exception ex)
             {
-                return new AssetSnapshotResult(trackedAsset, null, ex.Message);
+                results.Add(new AssetSnapshotResult(trackedAsset, null, ex.Message));
             }
-        });
+        }
 
-        return await Task.WhenAll(tasks);
+        return results;
     }
 
     public async Task<DashboardSnapshot> GetSnapshotAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
