@@ -3,7 +3,7 @@
 <section class="card">
     <div class="section-header">
         <h2>Historique des signaux - @Model.AssetName (@Model.AssetSymbol)</h2>
-        <a asp-controller="Home" asp-action="Index">Retour au dashboard</a>
+        <a asp-controller="Home" asp-action="Index" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Retour au dashboard</a>
     </div>
 </section>
 

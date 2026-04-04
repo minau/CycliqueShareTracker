@@ -18,42 +18,43 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index([FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
-        var snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
+        var snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
 
         if (snapshot.LastClose is null)
         {
             await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-            snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
+            snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
         }
 
         var notice = snapshot.LastClose is null
             ? "Aucune donnée marché disponible actuellement. Vérifiez la configuration MarketData (provider principal/fallback), la clé API `MarketData__AlphaVantage__ApiKey` et l'accès réseau sortant, puis relancez une mise à jour."
             : null;
 
-        var model = DashboardViewModel.FromSnapshot(snapshot, notice);
+        var model = DashboardViewModel.FromSnapshot(snapshot, includeMacdInScoring, notice);
         return View(model);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
+    public async Task<IActionResult> Refresh(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
         await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-        return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index), new { includeMacdInScoring });
     }
 
     [HttpGet]
-    public async Task<IActionResult> SignalHistory(CancellationToken cancellationToken)
+    public async Task<IActionResult> SignalHistory([FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
-        var snapshot = await _dashboardService.GetSnapshotAsync(cancellationToken);
-        var history = await _dashboardService.GetSignalHistoryAsync(cancellationToken);
+        var snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
+        var history = await _dashboardService.GetSignalHistoryAsync(includeMacdInScoring, cancellationToken);
 
         var model = new SignalHistoryViewModel
         {
             AssetSymbol = snapshot.AssetSymbol,
             AssetName = snapshot.AssetName,
+            IncludeMacdInScoring = includeMacdInScoring,
             Rows = history.Select(row => new SignalHistoryRowViewModel
             {
                 Date = row.Date.ToString("dd/MM/yyyy"),

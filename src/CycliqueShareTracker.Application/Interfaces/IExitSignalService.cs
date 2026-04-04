@@ -4,5 +4,5 @@ namespace CycliqueShareTracker.Application.Interfaces;
 
 public interface IExitSignalService
 {
-    ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous);
+    ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true);
 }

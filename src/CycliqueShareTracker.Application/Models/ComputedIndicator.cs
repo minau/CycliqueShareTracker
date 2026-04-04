@@ -7,4 +7,10 @@ public sealed record ComputedIndicator(
     decimal? Rsi14,
     decimal? Drawdown52WeeksPercent,
     decimal Close,
-    decimal? PreviousClose);
+    decimal? PreviousClose,
+    decimal? MacdLine = null,
+    decimal? MacdSignalLine = null,
+    decimal? MacdHistogram = null,
+    decimal? PreviousMacdHistogram = null,
+    decimal? Ema12 = null,
+    decimal? Ema26 = null);

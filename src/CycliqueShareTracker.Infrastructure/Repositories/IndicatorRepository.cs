@@ -33,6 +33,11 @@ public sealed class IndicatorRepository : IIndicatorRepository
                 row.Sma200 = item.Sma200;
                 row.Rsi14 = item.Rsi14;
                 row.Drawdown52WeeksPercent = item.Drawdown52WeeksPercent;
+                row.Ema12 = item.Ema12;
+                row.Ema26 = item.Ema26;
+                row.MacdLine = item.MacdLine;
+                row.MacdSignalLine = item.MacdSignalLine;
+                row.MacdHistogram = item.MacdHistogram;
             }
             else
             {

@@ -11,8 +11,13 @@ public sealed class DashboardViewModel
     public decimal? DayChangePercent { get; init; }
     public decimal? Sma50 { get; init; }
     public decimal? Sma200 { get; init; }
+    public decimal? Ema12 { get; init; }
+    public decimal? Ema26 { get; init; }
     public decimal? Rsi14 { get; init; }
     public decimal? Drawdown52WeeksPercent { get; init; }
+    public decimal? MacdLine { get; init; }
+    public decimal? MacdSignalLine { get; init; }
+    public decimal? MacdHistogram { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
     public string EntryPrimaryReason { get; init; } = "N/A";
@@ -21,13 +26,14 @@ public sealed class DashboardViewModel
     public string ExitSignal { get; init; } = "N/A";
     public string ExitPrimaryReason { get; init; } = "N/A";
     public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
+    public bool IncludeMacdInScoring { get; init; } = true;
     public SignalTooltipViewModel EntryTooltip { get; init; } = new();
     public SignalTooltipViewModel ExitTooltip { get; init; } = new();
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
-    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string? notice = null)
+    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, bool includeMacdInScoring, string? notice = null)
     {
         return new DashboardViewModel
         {
@@ -38,8 +44,13 @@ public sealed class DashboardViewModel
             DayChangePercent = snapshot.DayChangePercent,
             Sma50 = snapshot.Sma50,
             Sma200 = snapshot.Sma200,
+            Ema12 = snapshot.Ema12,
+            Ema26 = snapshot.Ema26,
             Rsi14 = snapshot.Rsi14,
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
+            MacdLine = snapshot.MacdLine,
+            MacdSignalLine = snapshot.MacdSignalLine,
+            MacdHistogram = snapshot.MacdHistogram,
             Score = snapshot.Score,
             Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
             EntryPrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
@@ -48,6 +59,7 @@ public sealed class DashboardViewModel
             ExitSignal = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
             ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
             ExitScoreFactors = snapshot.ExitScoreFactors.Select(MapFactor).ToList(),
+            IncludeMacdInScoring = includeMacdInScoring,
             EntryTooltip = new SignalTooltipViewModel
             {
                 Title = FormatSignal(snapshot.SignalLabel?.ToString()),
@@ -73,6 +85,9 @@ public sealed class DashboardViewModel
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
                 Rsi14 = x.Rsi14,
+                MacdLine = x.MacdLine,
+                MacdSignalLine = x.MacdSignalLine,
+                MacdHistogram = x.MacdHistogram,
                 EntryScore = x.EntryScore,
                 EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
                 EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),

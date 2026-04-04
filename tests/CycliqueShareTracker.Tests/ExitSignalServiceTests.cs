@@ -1,6 +1,7 @@
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using System;
 using Xunit;
 
 namespace CycliqueShareTracker.Tests;
@@ -26,7 +27,7 @@ public class ExitSignalServiceTests
         Assert.Equal(0, result.ExitScore);
         Assert.Equal(ExitSignalLabel.Hold, result.ExitSignal);
         Assert.Equal("Aucun signal de sortie fort détecté.", result.PrimaryExitReason);
-        Assert.Equal(6, result.ScoreFactors.Count);
+        Assert.Equal(10, result.ScoreFactors.Count);
     }
 
     [Fact]
@@ -78,5 +79,107 @@ public class ExitSignalServiceTests
         Assert.Equal(ExitSignalLabel.Hold, hold.ExitSignal);
         Assert.Equal(ExitSignalLabel.TrimTakeProfit, trim.ExitSignal);
         Assert.Equal(ExitSignalLabel.SellZone, sell.ExitSignal);
+    }
+
+    [Fact]
+    public void BuildExitSignal_ShouldUseMacdAsConfirmation_NotAsStandaloneSellTrigger()
+    {
+        var previous = new ComputedIndicator(
+            new DateOnly(2026, 04, 01),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 62m,
+            Drawdown52WeeksPercent: -4m,
+            Close: 101m,
+            PreviousClose: 100m,
+            MacdLine: 1.20m,
+            MacdSignalLine: 1.00m,
+            MacdHistogram: 0.20m);
+        var current = new ComputedIndicator(
+            new DateOnly(2026, 04, 02),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 63m,
+            Drawdown52WeeksPercent: -4m,
+            Close: 102m,
+            PreviousClose: 101m,
+            MacdLine: 0.80m,
+            MacdSignalLine: 0.90m,
+            MacdHistogram: -0.10m);
+
+        var result = _service.BuildExitSignal(current, previous);
+
+        Assert.Equal(31, result.ExitScore);
+        Assert.Equal(ExitSignalLabel.Hold, result.ExitSignal);
+        Assert.Contains(result.ScoreFactors, f => f.Label.Contains("Momentum en ralentissement") && f.Triggered);
+        Assert.Contains(result.ScoreFactors, f => f.Label.Contains("se rapproche de sa ligne signal") && f.Triggered);
+        Assert.Contains(result.ScoreFactors, f => f.Label.Contains("Signal MACD baissier") && f.Triggered);
+        Assert.Contains(result.ScoreFactors, f => f.Label.Contains("histogramme MACD est désormais négatif") && f.Triggered);
+    }
+
+    [Fact]
+    public void BuildExitSignal_ShouldReachTrimTakeProfit_WhenMacdWeakeningAddsToOverheatContext()
+    {
+        var previous = new ComputedIndicator(
+            new DateOnly(2026, 04, 01),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 77m,
+            Drawdown52WeeksPercent: -3m,
+            Close: 113m,
+            PreviousClose: 112m,
+            MacdLine: 1.10m,
+            MacdSignalLine: 1.00m,
+            MacdHistogram: 0.10m);
+        var current = new ComputedIndicator(
+            new DateOnly(2026, 04, 02),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 78m,
+            Drawdown52WeeksPercent: -2m,
+            Close: 114m,
+            PreviousClose: 113m,
+            MacdLine: 0.95m,
+            MacdSignalLine: 1.00m,
+            MacdHistogram: -0.05m);
+
+        var result = _service.BuildExitSignal(current, previous);
+
+        Assert.True(result.ExitScore > 45);
+        Assert.Equal(ExitSignalLabel.TrimTakeProfit, result.ExitSignal);
+    }
+
+    [Fact]
+    public void BuildExitSignal_ShouldIgnoreMacdFactors_WhenOptionIsDisabled()
+    {
+        var previous = new ComputedIndicator(
+            new DateOnly(2026, 04, 01),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 62m,
+            Drawdown52WeeksPercent: -4m,
+            Close: 101m,
+            PreviousClose: 100m,
+            MacdLine: 1.20m,
+            MacdSignalLine: 1.00m,
+            MacdHistogram: 0.20m);
+        var current = new ComputedIndicator(
+            new DateOnly(2026, 04, 02),
+            Sma50: 100m,
+            Sma200: 90m,
+            Rsi14: 63m,
+            Drawdown52WeeksPercent: -4m,
+            Close: 102m,
+            PreviousClose: 101m,
+            MacdLine: 0.80m,
+            MacdSignalLine: 0.90m,
+            MacdHistogram: -0.10m);
+
+        var result = _service.BuildExitSignal(current, previous, includeMacdInScoring: false);
+
+        Assert.Equal(0, result.ExitScore);
+        Assert.Equal(ExitSignalLabel.Hold, result.ExitSignal);
+        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("MACD", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("histogramme", StringComparison.OrdinalIgnoreCase));
     }
 }
