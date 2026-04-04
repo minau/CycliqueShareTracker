@@ -205,6 +205,81 @@ public sealed class DashboardServiceTests
         Assert.NotNull(snapshot.ExitSignalLabel);
     }
 
+    [Fact]
+    public async Task GetSnapshotAsync_ShouldRecomputeSignalsWithoutMacd_WhenOptionIsDisabled()
+    {
+        var priceRepository = new FakePriceRepository
+        {
+            Prices = new[]
+            {
+                new DailyPrice { AssetId = 1, Date = new DateOnly(2026, 04, 03), Open = 105m, High = 106m, Low = 103m, Close = 104m },
+                new DailyPrice { AssetId = 1, Date = new DateOnly(2026, 04, 02), Open = 103m, High = 105m, Low = 102m, Close = 103m }
+            }
+        };
+        var indicatorRepository = new FakeIndicatorRepository
+        {
+            Indicators = new[]
+            {
+                new DailyIndicator
+                {
+                    AssetId = 1,
+                    Date = new DateOnly(2026, 04, 03),
+                    Sma50 = 100m,
+                    Sma200 = 95m,
+                    Rsi14 = 45m,
+                    Drawdown52WeeksPercent = -8m,
+                    MacdLine = 0.6m,
+                    MacdSignalLine = 0.4m,
+                    MacdHistogram = 0.2m
+                },
+                new DailyIndicator
+                {
+                    AssetId = 1,
+                    Date = new DateOnly(2026, 04, 02),
+                    Sma50 = 99m,
+                    Sma200 = 94m,
+                    Rsi14 = 44m,
+                    Drawdown52WeeksPercent = -9m,
+                    MacdLine = 0.5m,
+                    MacdSignalLine = 0.35m,
+                    MacdHistogram = 0.15m
+                }
+            }
+        };
+        var signalRepository = new FakeSignalRepository
+        {
+            Signals = new[]
+            {
+                new DailySignal
+                {
+                    AssetId = 1,
+                    Date = new DateOnly(2026, 04, 03),
+                    Score = 99,
+                    SignalLabel = SignalLabel.BuyZone,
+                    ExitScore = 80,
+                    ExitSignalLabel = ExitSignalLabel.SellZone,
+                    ExitPrimaryReason = "signal persistant"
+                }
+            }
+        };
+
+        var service = new DashboardService(
+            new FakeAssetRepository(),
+            priceRepository,
+            indicatorRepository,
+            signalRepository,
+            new SignalService(),
+            new ExitSignalService(),
+            new IndicatorCalculator(),
+            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new DashboardOptions { HistoryDays = 252 }));
+
+        var snapshot = await service.GetSnapshotAsync(includeMacdInScoring: false);
+
+        Assert.NotEqual(99, snapshot.Score);
+        Assert.NotEqual(80, snapshot.ExitScore);
+    }
+
     private static DashboardService CreateService(FakePriceRepository priceRepository, int historyDays)
     {
         return new DashboardService(

@@ -39,7 +39,7 @@ public sealed class DashboardService : IDashboardService
         _dashboardOptions = dashboardOptions.Value;
     }
 
-    public async Task<DashboardSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
+    public async Task<DashboardSnapshot> GetSnapshotAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
         var asset = await _assetRepository.GetOrCreateAsync(_assetOptions.Symbol, _assetOptions.Name, _assetOptions.Market, cancellationToken);
         var latestPrice = await _priceRepository.GetLatestAsync(asset.Id, cancellationToken);
@@ -77,7 +77,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate);
+        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
         decimal? dayChange = null;
         if (ordered.Count >= 2 && ordered[1].Close != 0)
         {
@@ -103,14 +103,14 @@ public sealed class DashboardService : IDashboardService
                     indicator?.MacdLine,
                     indicator?.MacdSignalLine,
                     indicator?.MacdHistogram,
-                    signal?.Score ?? breakdown.Entry.Score,
+                    includeMacdInScoring ? signal?.Score ?? breakdown.Entry.Score : breakdown.Entry.Score,
                     breakdown.Entry.PrimaryReason,
                     breakdown.Entry.ScoreFactors,
-                    signal?.SignalLabel ?? breakdown.Entry.Label,
-                    signal?.ExitScore ?? breakdown.Exit.ExitScore,
+                    includeMacdInScoring ? signal?.SignalLabel ?? breakdown.Entry.Label : breakdown.Entry.Label,
+                    includeMacdInScoring ? signal?.ExitScore ?? breakdown.Exit.ExitScore : breakdown.Exit.ExitScore,
                     breakdown.Exit.PrimaryExitReason,
                     breakdown.Exit.ScoreFactors,
-                    signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal);
+                    includeMacdInScoring ? signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal : breakdown.Exit.ExitSignal);
             })
             .ToList();
 
@@ -118,10 +118,10 @@ public sealed class DashboardService : IDashboardService
         IReadOnlyList<ScoreFactorDetail> exitFactors = Array.Empty<ScoreFactorDetail>();
         string? entryPrimaryReason = null;
         string? exitPrimaryReason = latestSignal?.ExitPrimaryReason;
-        int? latestEntryScore = latestSignal?.Score;
-        Domain.Enums.SignalLabel? latestEntryLabel = latestSignal?.SignalLabel;
-        int? latestExitScore = latestSignal?.ExitScore;
-        Domain.Enums.ExitSignalLabel? latestExitLabel = latestSignal?.ExitSignalLabel;
+        int? latestEntryScore = includeMacdInScoring ? latestSignal?.Score : null;
+        Domain.Enums.SignalLabel? latestEntryLabel = includeMacdInScoring ? latestSignal?.SignalLabel : null;
+        int? latestExitScore = includeMacdInScoring ? latestSignal?.ExitScore : null;
+        Domain.Enums.ExitSignalLabel? latestExitLabel = includeMacdInScoring ? latestSignal?.ExitSignalLabel : null;
         if (latestPrice is not null && breakdownByDate.TryGetValue(latestPrice.Date, out var latestBreakdown))
         {
             entryFactors = latestBreakdown.Entry.ScoreFactors;
@@ -161,7 +161,7 @@ public sealed class DashboardService : IDashboardService
             ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList());
     }
 
-    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
         var asset = await _assetRepository.GetOrCreateAsync(_assetOptions.Symbol, _assetOptions.Name, _assetOptions.Market, cancellationToken);
         var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
@@ -173,7 +173,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate);
+        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
 
         return recentPrices
             .OrderByDescending(x => x.Date)
@@ -189,12 +189,12 @@ public sealed class DashboardService : IDashboardService
                     indicator?.Sma200,
                     indicator?.Rsi14,
                     indicator?.Drawdown52WeeksPercent,
-                    signal?.Score,
-                    signal?.SignalLabel,
+                    includeMacdInScoring ? signal?.Score ?? breakdown.Entry.Score : breakdown.Entry.Score,
+                    includeMacdInScoring ? signal?.SignalLabel ?? breakdown.Entry.Label : breakdown.Entry.Label,
                     breakdown.Entry.PrimaryReason,
                     breakdown.Entry.ScoreFactors,
-                    signal?.ExitScore,
-                    signal?.ExitSignalLabel,
+                    includeMacdInScoring ? signal?.ExitScore ?? breakdown.Exit.ExitScore : breakdown.Exit.ExitScore,
+                    includeMacdInScoring ? signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal : breakdown.Exit.ExitSignal,
                     breakdown.Exit.PrimaryExitReason,
                     breakdown.Exit.ScoreFactors);
             })
@@ -202,15 +202,16 @@ public sealed class DashboardService : IDashboardService
     }
 
     private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(
-        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate)
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate,
+        bool includeMacdInScoring)
     {
         var breakdown = new Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)>(computedByDate.Count);
         ComputedIndicator? previous = null;
 
         foreach (var current in computedByDate.Values.OrderBy(x => x.Date))
         {
-            var entrySignal = _signalService.BuildSignal(current);
-            var exitSignal = _exitSignalService.BuildExitSignal(current, previous);
+            var entrySignal = _signalService.BuildSignal(current, includeMacdInScoring);
+            var exitSignal = _exitSignalService.BuildExitSignal(current, previous, includeMacdInScoring);
             breakdown[current.Date] = (entrySignal, exitSignal);
             previous = current;
         }

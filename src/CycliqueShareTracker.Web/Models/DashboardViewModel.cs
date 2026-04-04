@@ -26,13 +26,14 @@ public sealed class DashboardViewModel
     public string ExitSignal { get; init; } = "N/A";
     public string ExitPrimaryReason { get; init; } = "N/A";
     public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
+    public bool IncludeMacdInScoring { get; init; } = true;
     public SignalTooltipViewModel EntryTooltip { get; init; } = new();
     public SignalTooltipViewModel ExitTooltip { get; init; } = new();
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
-    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string? notice = null)
+    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, bool includeMacdInScoring, string? notice = null)
     {
         return new DashboardViewModel
         {
@@ -58,6 +59,7 @@ public sealed class DashboardViewModel
             ExitSignal = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
             ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
             ExitScoreFactors = snapshot.ExitScoreFactors.Select(MapFactor).ToList(),
+            IncludeMacdInScoring = includeMacdInScoring,
             EntryTooltip = new SignalTooltipViewModel
             {
                 Title = FormatSignal(snapshot.SignalLabel?.ToString()),

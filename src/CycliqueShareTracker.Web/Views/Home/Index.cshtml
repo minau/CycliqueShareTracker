@@ -52,15 +52,30 @@
     </div>
 </section>
 
+<section class="card">
+    <form method="get" asp-action="Index">
+        <input type="hidden" name="includeMacdInScoring" value="false" />
+        <label>
+            <input type="checkbox"
+                   name="includeMacdInScoring"
+                   value="true"
+                   @(Model.IncludeMacdInScoring ? "checked" : null)
+                   onchange="this.form.submit()" />
+            Activer le MACD pour les signaux Buy/Sell
+        </label>
+    </form>
+</section>
+
 <form asp-action="Refresh" method="post">
     @Html.AntiForgeryToken()
+    <input type="hidden" name="includeMacdInScoring" value="@Model.IncludeMacdInScoring" />
     <button type="submit">Lancer une mise à jour manuelle</button>
 </form>
 
 <section class="card">
     <div class="section-header">
         <h3>Bougies & tendances (SMA50 / SMA200)</h3>
-        <a asp-controller="Home" asp-action="SignalHistory">Voir l'historique des signaux</a>
+        <a asp-controller="Home" asp-action="SignalHistory" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Voir l'historique des signaux</a>
     </div>
     <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
         <div class="chart-stack">

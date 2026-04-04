@@ -4,6 +4,6 @@ namespace CycliqueShareTracker.Application.Interfaces;
 
 public interface IDashboardService
 {
-    Task<DashboardSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(CancellationToken cancellationToken = default);
+    Task<DashboardSnapshot> GetSnapshotAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default);
 }

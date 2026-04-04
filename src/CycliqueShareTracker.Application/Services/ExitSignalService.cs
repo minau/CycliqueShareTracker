@@ -6,16 +6,13 @@ namespace CycliqueShareTracker.Application.Services;
 
 public sealed class ExitSignalService : IExitSignalService
 {
-    public ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous)
+    public ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true)
     {
         decimal? distanceToSma50Percent = null;
         if (current.Sma50.HasValue && current.Sma50.Value != 0)
         {
             distanceToSma50Percent = ((current.Close / current.Sma50.Value) - 1m) * 100m;
         }
-
-        decimal? currentMacdSpread = ComputeMacdSpread(current);
-        decimal? previousMacdSpread = previous is null ? null : ComputeMacdSpread(previous);
 
         var factors = new List<ScoreFactorDetail>
         {
@@ -53,36 +50,43 @@ public sealed class ExitSignalService : IExitSignalService
                 "Cassure sous SMA200",
                 30,
                 current.Sma200.HasValue && current.Close < current.Sma200.Value,
-                "Rupture de tendance de fond."),
-            new(
+                "Rupture de tendance de fond.")
+        };
+
+        if (includeMacdInScoring)
+        {
+            decimal? currentMacdSpread = ComputeMacdSpread(current);
+            decimal? previousMacdSpread = previous is null ? null : ComputeMacdSpread(previous);
+
+            factors.Add(new(
                 "Momentum en ralentissement : l'histogramme MACD diminue",
                 8,
                 current.MacdHistogram.HasValue &&
                 previous?.MacdHistogram.HasValue == true &&
                 current.MacdHistogram.Value < previous.MacdHistogram.Value,
-                "Le momentum haussier perd en intensité."),
-            new(
+                "Le momentum haussier perd en intensité."));
+            factors.Add(new(
                 "Le MACD se rapproche de sa ligne signal, signe d'essoufflement",
                 5,
                 currentMacdSpread.HasValue &&
                 previousMacdSpread.HasValue &&
                 Math.Abs(currentMacdSpread.Value) < Math.Abs(previousMacdSpread.Value) &&
                 previousMacdSpread.Value > 0,
-                "Convergence MACD/Signal en fin d'impulsion haussière."),
-            new(
+                "Convergence MACD/Signal en fin d'impulsion haussière."));
+            factors.Add(new(
                 "Signal MACD baissier : la ligne MACD est passée sous la ligne signal",
                 12,
                 currentMacdSpread.HasValue &&
                 previousMacdSpread.HasValue &&
                 previousMacdSpread.Value >= 0 &&
                 currentMacdSpread.Value < 0,
-                "Risque de retournement à la baisse."),
-            new(
+                "Risque de retournement à la baisse."));
+            factors.Add(new(
                 "Confirmation baissière : l'histogramme MACD est désormais négatif",
                 6,
                 current.MacdHistogram.HasValue && current.MacdHistogram.Value < 0,
-                "Momentum baissier désormais dominant.")
-        };
+                "Momentum baissier désormais dominant."));
+        }
 
         var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
 

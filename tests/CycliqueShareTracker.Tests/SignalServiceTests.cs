@@ -1,6 +1,7 @@
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using System;
 using System.Linq;
 using Xunit;
 
@@ -122,5 +123,29 @@ public class SignalServiceTests
 
         Assert.Equal(74, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
+    }
+
+    [Fact]
+    public void BuildSignal_ShouldIgnoreMacdFactors_WhenOptionIsDisabled()
+    {
+        var indicator = new ComputedIndicator(
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            Sma50: 105,
+            Sma200: 100,
+            Rsi14: 70,
+            Drawdown52WeeksPercent: -12,
+            Close: 106,
+            PreviousClose: 103,
+            MacdLine: 0.4m,
+            MacdSignalLine: 0.5m,
+            MacdHistogram: -0.1m,
+            PreviousMacdHistogram: 0.0m);
+
+        var result = _service.BuildSignal(indicator, includeMacdInScoring: false);
+
+        Assert.Equal(80, result.Score);
+        Assert.Equal(SignalLabel.BuyZone, result.Label);
+        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("MACD", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.ScoreFactors, x => x.Label.Contains("histogramme", StringComparison.OrdinalIgnoreCase));
     }
 }
