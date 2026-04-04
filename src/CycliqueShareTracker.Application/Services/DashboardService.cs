@@ -262,6 +262,9 @@ public sealed class DashboardService : IDashboardService
         var ordered = prices.OrderBy(x => x.Date).ToList();
         var result = new Dictionary<DateOnly, ComputedIndicator>(ordered.Count);
 
+        var bullishStreak = 0;
+        var bearishStreak = 0;
+
         for (var i = 0; i < ordered.Count; i++)
         {
             var current = ordered[i];
@@ -272,6 +275,17 @@ public sealed class DashboardService : IDashboardService
             {
                 indicatorByDate.TryGetValue(ordered[i - 1].Date, out var previousIndicator);
                 previousMacdHistogram = previousIndicator?.MacdHistogram;
+            }
+
+            if (previousClose.HasValue)
+            {
+                bullishStreak = current.Close > previousClose.Value ? bullishStreak + 1 : 0;
+                bearishStreak = current.Close < previousClose.Value ? bearishStreak + 1 : 0;
+            }
+            else
+            {
+                bullishStreak = 0;
+                bearishStreak = 0;
             }
 
             result[current.Date] = new ComputedIndicator(
@@ -287,7 +301,9 @@ public sealed class DashboardService : IDashboardService
                 indicator?.MacdHistogram,
                 previousMacdHistogram,
                 indicator?.Ema12,
-                indicator?.Ema26);
+                indicator?.Ema26,
+                bullishStreak,
+                bearishStreak);
         }
 
         return result;

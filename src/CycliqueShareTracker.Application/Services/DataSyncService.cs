@@ -113,7 +113,8 @@ public sealed class DataSyncService : IDataSyncService
 
         await _indicatorRepository.UpsertIndicatorsAsync(asset.Id, indicators, cancellationToken);
 
-        var computedByDate = computed.ToDictionary(x => x.Date);
+        var computedWithContext = BuildComputedWithContext(computed);
+        var computedByDate = computedWithContext.ToDictionary(x => x.Date);
         var timeline = _signalTimelineService.BuildSignalTimeline(computedByDate, includeMacdConfirmation: true);
 
         var signals = timeline.Select(item => new DailySignal
@@ -133,6 +134,38 @@ public sealed class DataSyncService : IDataSyncService
         _logger.LogInformation("Daily update complete for {Symbol} with {Count} rows", asset.Symbol, prices.Count);
     }
 
+
+    private static IReadOnlyList<ComputedIndicator> BuildComputedWithContext(IReadOnlyList<ComputedIndicator> computed)
+    {
+        var result = new List<ComputedIndicator>(computed.Count);
+        var ordered = computed.OrderBy(x => x.Date).ToList();
+        var bullishStreak = 0;
+        var bearishStreak = 0;
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var current = ordered[i];
+            var previousClose = i > 0 ? ordered[i - 1].Close : (decimal?)null;
+            if (previousClose.HasValue)
+            {
+                bullishStreak = current.Close > previousClose.Value ? bullishStreak + 1 : 0;
+                bearishStreak = current.Close < previousClose.Value ? bearishStreak + 1 : 0;
+            }
+            else
+            {
+                bullishStreak = 0;
+                bearishStreak = 0;
+            }
+
+            result.Add(current with
+            {
+                BullishStreakCount = bullishStreak,
+                BearishStreakCount = bearishStreak
+            });
+        }
+
+        return result;
+    }
     private static IReadOnlyList<TrackedAssetOptions> BuildWatchlist(IReadOnlyList<TrackedAssetOptions>? configuredAssets)
     {
         var source = configuredAssets is { Count: > 0 }

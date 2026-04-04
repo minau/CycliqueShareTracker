@@ -7,12 +7,15 @@ public sealed class SignalStrategyOptions
     public int BuyScoreThreshold { get; set; } = 70;
     public int SellScoreThreshold { get; set; } = 70;
     public decimal MinRsiForBuy { get; set; } = 40m;
-    public decimal MaxRsiForBuy { get; set; } = 60m;
-    public decimal MaxDistanceFromSma50ForBuyPct { get; set; } = 5m;
-    public decimal MinRsiBreakdownForSell { get; set; } = 45m;
+    public decimal MaxRsiForBuy { get; set; } = 58m;
+    public decimal MaxDistanceAboveSma50ForBuyPct { get; set; } = 5m;
+    public decimal MinRsiWeaknessForSell { get; set; } = 47m;
     public bool EnableMacdConfirmation { get; set; } = true;
     public int MinimumBarsBetweenSameSignal { get; set; } = 8;
     public decimal MinSma50SlopeForBuy { get; set; } = 0.05m;
     public decimal MaxFlatSlopeThreshold { get; set; } = 0.02m;
     public decimal MinGapBetweenSma50AndSma200Pct { get; set; } = 1.5m;
+    public int MaxBullishStreakForBuy { get; set; } = 2;
+    public bool EarlySellEnabled { get; set; } = true;
+    public int EarlySellWeaknessScoreThreshold { get; set; } = 55;
 }

@@ -22,34 +22,38 @@ public sealed class ExitSignalService : IExitSignalService
 
         var isBelowSma50 = current.Sma50.HasValue && current.Close < current.Sma50.Value;
         var isBelowSma200 = current.Sma200.HasValue && current.Close < current.Sma200.Value;
-        var isSma50Weakening = sma50SlopePct.HasValue && sma50SlopePct.Value <= -_strategyOptions.MaxFlatSlopeThreshold;
-        var isRsiBreakdown = current.Rsi14.HasValue && current.Rsi14.Value <= _strategyOptions.MinRsiBreakdownForSell;
+        var isSma50Weakening = sma50SlopePct.HasValue && sma50SlopePct.Value <= _strategyOptions.MaxFlatSlopeThreshold;
+        var isSma50Negative = sma50SlopePct.HasValue && sma50SlopePct.Value < 0m;
+        var isRsiWeak = current.Rsi14.HasValue && current.Rsi14.Value <= _strategyOptions.MinRsiWeaknessForSell;
         var isMomentumWeak = current.PreviousClose.HasValue && current.Close < current.PreviousClose.Value;
-        var isTrendGapNarrow = smaGapPct.HasValue && smaGapPct.Value < _strategyOptions.MinGapBetweenSma50AndSma200Pct;
+        var isTwoBearishBars = current.BearishStreakCount >= 2;
+        var isGapNarrowing = smaGapPct.HasValue && smaGapPct.Value < _strategyOptions.MinGapBetweenSma50AndSma200Pct;
 
         var applyMacdConfirmation = includeMacdInScoring && _strategyOptions.EnableMacdConfirmation;
         var isMacdBearish = current.MacdLine.HasValue
             && current.MacdSignalLine.HasValue
             && current.MacdLine.Value < current.MacdSignalLine.Value;
 
-        var factors = new List<ScoreFactorDetail>
+        var scoreFactors = new List<ScoreFactorDetail>
         {
-            new("Prix sous SMA50", 25, isBelowSma50, "Premier signe de dégradation."),
-            new("Pente SMA50 négative", 20, isSma50Weakening, "Affaiblissement de tendance."),
-            new($"RSI14 <= {_strategyOptions.MinRsiBreakdownForSell}", 20, isRsiBreakdown, "Momentum en rupture."),
-            new("Clôture sous la veille", 15, isMomentumWeak, "Perte de force immédiate."),
-            new("Prix sous SMA200", 15, isBelowSma200, "Contexte baissier de fond."),
-            new("Écart SMA50/SMA200 se resserre", 10, isTrendGapNarrow, "Contexte de range/dégradation.")
+            new("Cassure sous SMA50", 25, isBelowSma50, "Signal de faiblesse technique précoce."),
+            new("Pente SMA50 en ralentissement", 15, isSma50Weakening, "Tendance intermédiaire qui fatigue."),
+            new("Pente SMA50 négative", 15, isSma50Negative, "Dégradation de tendance."),
+            new($"RSI14 <= {_strategyOptions.MinRsiWeaknessForSell}", 18, isRsiWeak, "Fragilisation du momentum."),
+            new("Perte de momentum (clôture sous la veille)", 12, isMomentumWeak, "Premier signal de distribution."),
+            new("2 bougies défavorables consécutives", 10, isTwoBearishBars, "Faiblesse qui s'installe."),
+            new("Prix sous SMA200", 20, isBelowSma200, "Confirmation de dégradation avancée."),
+            new("Écart SMA50/SMA200 se resserre", 8, isGapNarrowing, "Sortie de tendance / entrée en zone risquée.")
         };
 
-        var weaknessCount = new[] { isBelowSma50, isSma50Weakening, isRsiBreakdown, isMomentumWeak }.Count(x => x);
-        var hasSellContext = weaknessCount >= 2 || isBelowSma200;
+        var weaknessCount = new[] { isBelowSma50, isSma50Weakening, isRsiWeak, isMomentumWeak, isTwoBearishBars }.Count(x => x);
+        var earlyWeaknessScore = scoreFactors.Where(f => f.Triggered).Sum(f => f.Points);
 
         var blockingFilters = new List<ScoreFactorDetail>
         {
-            new("Filtre bloquant: contexte de faiblesse multi-signaux", 0, hasSellContext, "Le SELL ne dépend jamais d'un seul indicateur."),
-            new("Filtre bloquant: pente SMA50 non plate", 0, sma50SlopePct.HasValue && Math.Abs(sma50SlopePct.Value) >= _strategyOptions.MaxFlatSlopeThreshold, "Réduit les faux signaux en range."),
-            new("Filtre bloquant: dégradation de tendance (sous SMA50/SMA200 ou pente négative)", 0, isBelowSma50 || isBelowSma200 || isSma50Weakening, "Assure une faiblesse technique réelle.")
+            new("Filtre bloquant: contexte de faiblesse multi-signaux", 0, weaknessCount >= 2 || isBelowSma200, "Le SELL ne dépend pas d'un seul indicateur."),
+            new("Filtre bloquant: faiblesse structurelle (sous SMA50 ou pente négative)", 0, isBelowSma50 || isSma50Negative || isBelowSma200, "Évite les faux SELL sur bruit."),
+            new("Filtre bloquant: momentum en perte de force", 0, isMomentumWeak || isRsiWeak || isTwoBearishBars, "Détection précoce d'essoufflement.")
         };
 
         if (applyMacdConfirmation)
@@ -58,30 +62,40 @@ public sealed class ExitSignalService : IExitSignalService
                 "Filtre bloquant: confirmation MACD baissière",
                 0,
                 isMacdBearish,
-                "Quand activé, MACD agit comme filtre de confirmation."));
+                "MACD confirmé uniquement quand activé."));
         }
 
-        var score = Math.Clamp(factors.Where(x => x.Triggered).Sum(x => x.Points), 0, 100);
+        var confirmedSellScore = Math.Clamp(earlyWeaknessScore, 0, 100);
         var allBlockingFiltersPassed = blockingFilters.All(x => x.Triggered);
-        var isSellValidated = score >= _strategyOptions.SellScoreThreshold && allBlockingFiltersPassed;
+        var isConfirmedSell = confirmedSellScore >= _strategyOptions.SellScoreThreshold && allBlockingFiltersPassed;
+        var isEarlySell = _strategyOptions.EarlySellEnabled
+            && earlyWeaknessScore >= _strategyOptions.EarlySellWeaknessScoreThreshold
+            && allBlockingFiltersPassed;
 
-        var label = isSellValidated
+        var label = (isConfirmedSell || isEarlySell)
             ? ExitSignalLabel.SellZone
-            : score >= TrimThreshold
+            : confirmedSellScore >= TrimThreshold
                 ? ExitSignalLabel.TrimTakeProfit
                 : ExitSignalLabel.Hold;
 
-        var reasons = factors.Where(f => f.Triggered).Select(f => f.Label).ToList();
-        var blocked = blockingFilters.Where(f => !f.Triggered).Select(f => f.Label).ToList();
+        var triggeredReasons = scoreFactors.Where(f => f.Triggered).Select(f => f.Label);
+        var blockedReasons = blockingFilters.Where(f => !f.Triggered).Select(f => f.Label).ToList();
+        var primaryReason = label == ExitSignalLabel.SellZone && isEarlySell && !isConfirmedSell
+            ? "SELL précoce validé : essoufflement détecté avant cassure avancée."
+            : label == ExitSignalLabel.SellZone
+                ? "SELL confirmé : faiblesse technique et momentum baissier alignés."
+                : blockedReasons.Count > 0
+                    ? $"SELL non validé : {string.Join(" + ", blockedReasons)}."
+                    : $"SELL non validé : score insuffisant (< {_strategyOptions.SellScoreThreshold}).";
 
-        var primaryReason = isSellValidated
-            ? "SELL validé : cassure/faiblesse confirmée + score suffisant."
-            : blocked.Count > 0
-                ? $"SELL non validé : {string.Join(" + ", blocked)}."
-                : $"SELL non validé : score insuffisant (< {_strategyOptions.SellScoreThreshold}).";
+        var factors = scoreFactors.Concat(blockingFilters).ToList();
+        var explanation = string.Join("; ", triggeredReasons.Concat(blockedReasons.Select(x => $"Non validé: {x}")));
+        if (!string.IsNullOrWhiteSpace(explanation))
+        {
+            factors.Add(new ScoreFactorDetail("Résumé", 0, true, explanation));
+        }
 
-        var allFactors = factors.Concat(blockingFilters).ToList();
-        return new ExitSignalResult(score, label, primaryReason, allFactors);
+        return new ExitSignalResult(confirmedSellScore, label, primaryReason, factors);
     }
 
     private static decimal? CalculateSlopePercent(decimal? currentValue, decimal? previousValue)
