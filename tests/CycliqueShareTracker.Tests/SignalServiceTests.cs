@@ -13,64 +13,39 @@ public class SignalServiceTests
         => new(Options.Create(options ?? new SignalStrategyOptions()));
 
     [Fact]
-    public void BuildSignal_ShouldReturnBuyZone_WhenAllFiltersPassAndScoreIsHigh()
+    public void BuildSignal_ShouldReturnBuyZone_WhenAllBlockingFiltersPass()
     {
         var service = CreateService();
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 120,
-            Sma200: 100,
-            Rsi14: 52,
-            Drawdown52WeeksPercent: -8,
-            Close: 121,
-            PreviousClose: 118,
-            MacdLine: 1.2m,
-            MacdSignalLine: 0.9m);
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 104m, 100m, 48m, -7m, 106m, 105m, 0.6m, 0.5m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 105m, 100m, 50m, -6m, 107m, 106m, 0.8m, 0.6m);
 
-        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
+        var result = service.BuildSignal(current, previous, includeMacdInScoring: true);
 
-        Assert.Equal(100, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
-        Assert.Contains("BUY validé", result.PrimaryReason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Score >= 70);
     }
 
     [Fact]
-    public void BuildSignal_ShouldNotReturnBuyZone_WhenRsiIsAboveConfiguredLimit()
+    public void BuildSignal_ShouldBlockBuy_WhenPriceTooFarAboveSma50()
     {
         var service = CreateService();
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 120,
-            Sma200: 100,
-            Rsi14: 66,
-            Drawdown52WeeksPercent: -8,
-            Close: 121,
-            PreviousClose: 118,
-            MacdLine: 1.2m,
-            MacdSignalLine: 0.9m);
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 100m, 95m, 50m, -7m, 101m, 100m, 0.5m, 0.4m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 101m, 95m, 55m, -6m, 108m, 101m, 0.8m, 0.6m);
 
-        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
+        var result = service.BuildSignal(current, previous, includeMacdInScoring: true);
 
         Assert.NotEqual(SignalLabel.BuyZone, result.Label);
-        Assert.Contains("RSI trop élevé", result.PrimaryReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("distance prix/SMA50", result.PrimaryReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void BuildSignal_ShouldIgnoreMacdConfirmation_WhenDisabledFromOption()
+    public void BuildSignal_ShouldIgnoreMacdFilter_WhenDisabledAtRuntime()
     {
-        var service = CreateService(new SignalStrategyOptions { EnableMacdConfirmation = false });
-        var indicator = new ComputedIndicator(
-            DateOnly.FromDateTime(DateTime.UtcNow),
-            Sma50: 120,
-            Sma200: 100,
-            Rsi14: 50,
-            Drawdown52WeeksPercent: -8,
-            Close: 121,
-            PreviousClose: 118,
-            MacdLine: 0.1m,
-            MacdSignalLine: 0.4m);
+        var service = CreateService();
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 104m, 100m, 48m, -7m, 106m, 105m, 0.7m, 0.6m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 105m, 100m, 50m, -6m, 107m, 106m, 0.6m, 0.8m);
 
-        var result = service.BuildSignal(indicator, includeMacdInScoring: true);
+        var result = service.BuildSignal(current, previous, includeMacdInScoring: false);
 
         Assert.Equal(SignalLabel.BuyZone, result.Label);
     }

@@ -2,7 +2,6 @@ using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
 using Microsoft.Extensions.Options;
-using System;
 using Xunit;
 
 namespace CycliqueShareTracker.Tests;
@@ -13,11 +12,11 @@ public class ExitSignalServiceTests
         => new(Options.Create(options ?? new SignalStrategyOptions()));
 
     [Fact]
-    public void BuildExitSignal_ShouldReturnSellZone_WhenTrendWeakensAndFiltersPass()
+    public void BuildExitSignal_ShouldReturnSellZone_WhenWeaknessSignalsStack()
     {
         var service = CreateService();
-        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 101m, 96m, 65m, -5m, 102m, 101m, 1.1m, 1.0m);
-        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 100m, 95m, 58m, -7m, 92m, 102m, 0.8m, 1.0m);
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 100m, 96m, 50m, -4m, 101m, 103m, 0.2m, 0.1m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 99m, 96m, 43m, -5m, 95m, 101m, -0.1m, 0.0m);
 
         var result = service.BuildExitSignal(current, previous, includeMacdInScoring: true);
 
@@ -26,26 +25,26 @@ public class ExitSignalServiceTests
     }
 
     [Fact]
-    public void BuildExitSignal_ShouldNotReturnSellZone_WhenRsiIsBelowFloor()
+    public void BuildExitSignal_ShouldNotReturnSellZone_WhenWeaknessContextIsMissing()
     {
         var service = CreateService();
-        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 101m, 96m, 42m, -5m, 102m, 101m, 1.1m, 1.0m);
-        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 100m, 95m, 35m, -7m, 92m, 102m, 0.8m, 1.0m);
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 100m, 97m, 52m, -4m, 101m, 100m, 0.3m, 0.2m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 100.01m, 97m, 51m, -4m, 101.2m, 101m, 0.25m, 0.20m);
 
-        var result = service.BuildExitSignal(current, previous, includeMacdInScoring: true);
+        var result = service.BuildExitSignal(current, previous, includeMacdInScoring: false);
 
         Assert.NotEqual(ExitSignalLabel.SellZone, result.ExitSignal);
-        Assert.Contains("RSI trop bas", result.PrimaryExitReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("contexte de faiblesse", result.PrimaryExitReason);
     }
 
     [Fact]
-    public void BuildExitSignal_ShouldIgnoreMacdConfirmation_WhenToggleIsOff()
+    public void BuildExitSignal_ShouldIgnoreMacdConfirmation_WhenDisabledInConfig()
     {
-        var service = CreateService();
-        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 101m, 96m, 65m, -5m, 102m, 101m, 1.1m, 1.0m);
-        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 100m, 95m, 58m, -7m, 92m, 102m, 1.2m, 0.9m);
+        var service = CreateService(new SignalStrategyOptions { EnableMacdConfirmation = false });
+        var previous = new ComputedIndicator(new DateOnly(2026, 04, 01), 100m, 96m, 50m, -4m, 101m, 103m, 0.2m, 0.1m);
+        var current = new ComputedIndicator(new DateOnly(2026, 04, 02), 99m, 96m, 43m, -5m, 95m, 101m, 0.5m, 0.2m);
 
-        var result = service.BuildExitSignal(current, previous, includeMacdInScoring: false);
+        var result = service.BuildExitSignal(current, previous, includeMacdInScoring: true);
 
         Assert.Equal(ExitSignalLabel.SellZone, result.ExitSignal);
     }

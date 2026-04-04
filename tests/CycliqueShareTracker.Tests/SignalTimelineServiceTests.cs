@@ -23,10 +23,10 @@ public class SignalTimelineServiceTests
 
         var data = new Dictionary<DateOnly, ComputedIndicator>
         {
-            [new DateOnly(2026, 04, 01)] = new(new DateOnly(2026, 04, 01), 120m, 100m, 50m, -8m, 121m, 119m, 1.2m, 1.0m),
-            [new DateOnly(2026, 04, 02)] = new(new DateOnly(2026, 04, 02), 121m, 100m, 49m, -7m, 122m, 121m, 1.3m, 1.0m),
-            [new DateOnly(2026, 04, 03)] = new(new DateOnly(2026, 04, 03), 100m, 95m, 58m, -7m, 92m, 122m, 0.8m, 1.0m),
-            [new DateOnly(2026, 04, 04)] = new(new DateOnly(2026, 04, 04), 99m, 94m, 57m, -8m, 91m, 92m, 0.7m, 1.0m)
+            [new DateOnly(2026, 04, 01)] = new(new DateOnly(2026, 04, 01), 104m, 100m, 50m, -8m, 106m, 105m, 1.2m, 1.0m),
+            [new DateOnly(2026, 04, 02)] = new(new DateOnly(2026, 04, 02), 105m, 100m, 51m, -7m, 107m, 106m, 1.3m, 1.0m),
+            [new DateOnly(2026, 04, 03)] = new(new DateOnly(2026, 04, 03), 100m, 96m, 43m, -7m, 95m, 107m, 0.8m, 1.0m),
+            [new DateOnly(2026, 04, 04)] = new(new DateOnly(2026, 04, 04), 99m, 96m, 42m, -8m, 94m, 95m, 0.7m, 1.0m)
         };
 
         var result = timelineService.BuildSignalTimeline(data, includeMacdConfirmation: false);

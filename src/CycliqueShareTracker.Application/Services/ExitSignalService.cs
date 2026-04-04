@@ -17,47 +17,53 @@ public sealed class ExitSignalService : IExitSignalService
 
     public ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true)
     {
-        decimal? distanceToSma50Percent = null;
-        if (current.Sma50.HasValue && current.Sma50.Value != 0)
-        {
-            distanceToSma50Percent = ((current.Close / current.Sma50.Value) - 1m) * 100m;
-        }
+        var sma50SlopePct = CalculateSlopePercent(current.Sma50, previous?.Sma50);
+        var smaGapPct = CalculateGapPercent(current.Sma50, current.Sma200);
 
         var isBelowSma50 = current.Sma50.HasValue && current.Close < current.Sma50.Value;
         var isBelowSma200 = current.Sma200.HasValue && current.Close < current.Sma200.Value;
-        var isCloseWeakening = current.PreviousClose.HasValue && current.Close < current.PreviousClose.Value;
-        var isRsiDeclining = previous?.Rsi14.HasValue == true && current.Rsi14.HasValue && current.Rsi14.Value < previous.Rsi14.Value;
+        var isSma50Weakening = sma50SlopePct.HasValue && sma50SlopePct.Value <= -_strategyOptions.MaxFlatSlopeThreshold;
+        var isRsiBreakdown = current.Rsi14.HasValue && current.Rsi14.Value <= _strategyOptions.MinRsiBreakdownForSell;
+        var isMomentumWeak = current.PreviousClose.HasValue && current.Close < current.PreviousClose.Value;
+        var isTrendGapNarrow = smaGapPct.HasValue && smaGapPct.Value < _strategyOptions.MinGapBetweenSma50AndSma200Pct;
+
+        var applyMacdConfirmation = includeMacdInScoring && _strategyOptions.EnableMacdConfirmation;
+        var isMacdBearish = current.MacdLine.HasValue
+            && current.MacdSignalLine.HasValue
+            && current.MacdLine.Value < current.MacdSignalLine.Value;
 
         var factors = new List<ScoreFactorDetail>
         {
-            new("Cassure sous SMA50", 35, isBelowSma50, "Rupture de la tendance intermédiaire."),
-            new("Cassure sous SMA200", 25, isBelowSma200, "Risque de retournement de fond."),
-            new("Affaiblissement journalier (clôture sous la veille)", 15, isCloseWeakening, "Momentum court terme en dégradation."),
-            new("RSI14 au-dessus de 65", 15, current.Rsi14 is >= 65m, "Contexte de prise de profit."),
-            new("RSI14 en baisse vs veille", 10, isRsiDeclining, "Perte progressive de momentum.")
+            new("Prix sous SMA50", 25, isBelowSma50, "Premier signe de dégradation."),
+            new("Pente SMA50 négative", 20, isSma50Weakening, "Affaiblissement de tendance."),
+            new($"RSI14 <= {_strategyOptions.MinRsiBreakdownForSell}", 20, isRsiBreakdown, "Momentum en rupture."),
+            new("Clôture sous la veille", 15, isMomentumWeak, "Perte de force immédiate."),
+            new("Prix sous SMA200", 15, isBelowSma200, "Contexte baissier de fond."),
+            new("Écart SMA50/SMA200 se resserre", 10, isTrendGapNarrow, "Contexte de range/dégradation.")
         };
 
-        if (distanceToSma50Percent.HasValue)
+        var weaknessCount = new[] { isBelowSma50, isSma50Weakening, isRsiBreakdown, isMomentumWeak }.Count(x => x);
+        var hasSellContext = weaknessCount >= 2 || isBelowSma200;
+
+        var blockingFilters = new List<ScoreFactorDetail>
         {
-            factors.Add(new(
-                "Extension extrême au-dessus de la SMA50 (> 10%)",
-                10,
-                distanceToSma50Percent.Value > 10m,
-                "Excès haussier potentiellement en fin de cycle."));
+            new("Filtre bloquant: contexte de faiblesse multi-signaux", 0, hasSellContext, "Le SELL ne dépend jamais d'un seul indicateur."),
+            new("Filtre bloquant: pente SMA50 non plate", 0, sma50SlopePct.HasValue && Math.Abs(sma50SlopePct.Value) >= _strategyOptions.MaxFlatSlopeThreshold, "Réduit les faux signaux en range."),
+            new("Filtre bloquant: dégradation de tendance (sous SMA50/SMA200 ou pente négative)", 0, isBelowSma50 || isBelowSma200 || isSma50Weakening, "Assure une faiblesse technique réelle.")
+        };
+
+        if (applyMacdConfirmation)
+        {
+            blockingFilters.Add(new(
+                "Filtre bloquant: confirmation MACD baissière",
+                0,
+                isMacdBearish,
+                "Quand activé, MACD agit comme filtre de confirmation."));
         }
 
         var score = Math.Clamp(factors.Where(x => x.Triggered).Sum(x => x.Points), 0, 100);
-
-        var trendWeakeningFilterPassed = isBelowSma50 || (isCloseWeakening && (isRsiDeclining || isBelowSma200));
-        var rsiFilterPassed = current.Rsi14.HasValue && current.Rsi14.Value >= _strategyOptions.MinRsiForSell;
-        var applyMacdConfirmation = includeMacdInScoring && _strategyOptions.EnableMacdConfirmation;
-        var macdFilterPassed = !applyMacdConfirmation
-            || (current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value);
-
-        var isSellValidated = score >= _strategyOptions.SellScoreThreshold
-            && trendWeakeningFilterPassed
-            && rsiFilterPassed
-            && macdFilterPassed;
+        var allBlockingFiltersPassed = blockingFilters.All(x => x.Triggered);
+        var isSellValidated = score >= _strategyOptions.SellScoreThreshold && allBlockingFiltersPassed;
 
         var label = isSellValidated
             ? ExitSignalLabel.SellZone
@@ -65,54 +71,36 @@ public sealed class ExitSignalService : IExitSignalService
                 ? ExitSignalLabel.TrimTakeProfit
                 : ExitSignalLabel.Hold;
 
-        var validationReasons = new List<string>();
-        if (trendWeakeningFilterPassed)
-        {
-            validationReasons.Add("affaiblissement de tendance validé");
-        }
-
-        if (rsiFilterPassed)
-        {
-            validationReasons.Add($"RSI >= {_strategyOptions.MinRsiForSell}");
-        }
-
-        if (applyMacdConfirmation && macdFilterPassed)
-        {
-            validationReasons.Add("confirmation MACD baissière");
-        }
-
-        if (score >= _strategyOptions.SellScoreThreshold)
-        {
-            validationReasons.Add($"score >= {_strategyOptions.SellScoreThreshold}");
-        }
-
-        var blockedReasons = new List<string>();
-        if (!trendWeakeningFilterPassed)
-        {
-            blockedReasons.Add("pas de cassure SMA50 ni affaiblissement clair");
-        }
-
-        if (!rsiFilterPassed)
-        {
-            blockedReasons.Add($"RSI trop bas pour un SELL (< {_strategyOptions.MinRsiForSell})");
-        }
-
-        if (score < _strategyOptions.SellScoreThreshold)
-        {
-            blockedReasons.Add($"score insuffisant (< {_strategyOptions.SellScoreThreshold})");
-        }
-
-        if (applyMacdConfirmation && !macdFilterPassed)
-        {
-            blockedReasons.Add("confirmation MACD baissière absente");
-        }
+        var reasons = factors.Where(f => f.Triggered).Select(f => f.Label).ToList();
+        var blocked = blockingFilters.Where(f => !f.Triggered).Select(f => f.Label).ToList();
 
         var primaryReason = isSellValidated
-            ? $"SELL validé : {string.Join(" + ", validationReasons)}."
-            : blockedReasons.Count > 0
-                ? $"SELL non validé : {string.Join(" + ", blockedReasons)}."
-                : "Aucun signal de sortie fort détecté.";
+            ? "SELL validé : cassure/faiblesse confirmée + score suffisant."
+            : blocked.Count > 0
+                ? $"SELL non validé : {string.Join(" + ", blocked)}."
+                : $"SELL non validé : score insuffisant (< {_strategyOptions.SellScoreThreshold}).";
 
-        return new ExitSignalResult(score, label, primaryReason, factors);
+        var allFactors = factors.Concat(blockingFilters).ToList();
+        return new ExitSignalResult(score, label, primaryReason, allFactors);
+    }
+
+    private static decimal? CalculateSlopePercent(decimal? currentValue, decimal? previousValue)
+    {
+        if (!currentValue.HasValue || !previousValue.HasValue || previousValue.Value == 0)
+        {
+            return null;
+        }
+
+        return ((currentValue.Value / previousValue.Value) - 1m) * 100m;
+    }
+
+    private static decimal? CalculateGapPercent(decimal? sma50, decimal? sma200)
+    {
+        if (!sma50.HasValue || !sma200.HasValue || sma200.Value == 0)
+        {
+            return null;
+        }
+
+        return ((sma50.Value / sma200.Value) - 1m) * 100m;
     }
 }
