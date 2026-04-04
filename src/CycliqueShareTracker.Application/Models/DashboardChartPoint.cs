@@ -10,5 +10,11 @@ public sealed record DashboardChartPoint(
     decimal Close,
     decimal? Sma50,
     decimal? Sma200,
+    int? EntryScore,
+    string? EntryPrimaryReason,
+    IReadOnlyList<ScoreFactorDetail> EntryScoreFactors,
     SignalLabel? SignalLabel,
+    int? ExitScore,
+    string? ExitPrimaryReason,
+    IReadOnlyList<ScoreFactorDetail> ExitScoreFactors,
     ExitSignalLabel? ExitSignalLabel);

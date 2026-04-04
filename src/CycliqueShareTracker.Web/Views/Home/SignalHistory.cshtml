@@ -35,9 +35,19 @@
                 <td>@(row.Rsi14?.ToString("F2") ?? "N/A")</td>
                 <td>@(row.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
                 <td>@(row.Score?.ToString() ?? "N/A")</td>
-                <td>@row.Signal</td>
+                <td>
+                    <div class="signal-tooltip">
+                        <span class="signal-trigger" tabindex="0">@row.Signal</span>
+                        <partial name="_SignalTooltip" model="row.EntryTooltip" />
+                    </div>
+                </td>
                 <td>@(row.ExitScore?.ToString() ?? "N/A")</td>
-                <td>@row.ExitSignal</td>
+                <td>
+                    <div class="signal-tooltip">
+                        <span class="signal-trigger" tabindex="0">@row.ExitSignal</span>
+                        <partial name="_SignalTooltip" model="row.ExitTooltip" />
+                    </div>
+                </td>
                 <td>@row.ExitPrimaryReason</td>
             </tr>
         }

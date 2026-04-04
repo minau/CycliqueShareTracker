@@ -15,9 +15,14 @@ public sealed class DashboardViewModel
     public decimal? Drawdown52WeeksPercent { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
+    public string EntryPrimaryReason { get; init; } = "N/A";
+    public IReadOnlyList<SignalScoreFactorViewModel> EntryScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
     public int? ExitScore { get; init; }
     public string ExitSignal { get; init; } = "N/A";
     public string ExitPrimaryReason { get; init; } = "N/A";
+    public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
+    public SignalTooltipViewModel EntryTooltip { get; init; } = new();
+    public SignalTooltipViewModel ExitTooltip { get; init; } = new();
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
@@ -37,9 +42,26 @@ public sealed class DashboardViewModel
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
             Score = snapshot.Score,
             Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
+            EntryPrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
+            EntryScoreFactors = snapshot.EntryScoreFactors.Select(MapFactor).ToList(),
             ExitScore = snapshot.ExitScore,
             ExitSignal = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
             ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
+            ExitScoreFactors = snapshot.ExitScoreFactors.Select(MapFactor).ToList(),
+            EntryTooltip = new SignalTooltipViewModel
+            {
+                Title = FormatSignal(snapshot.SignalLabel?.ToString()),
+                Score = snapshot.Score,
+                PrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
+                Factors = snapshot.EntryScoreFactors.Select(MapFactor).ToList()
+            },
+            ExitTooltip = new SignalTooltipViewModel
+            {
+                Title = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
+                Score = snapshot.ExitScore,
+                PrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
+                Factors = snapshot.ExitScoreFactors.Select(MapFactor).ToList()
+            },
             Notice = notice,
             ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
             {
@@ -50,7 +72,13 @@ public sealed class DashboardViewModel
                 Close = x.Close,
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
+                EntryScore = x.EntryScore,
+                EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
+                EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),
                 IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal),
+                ExitScore = x.ExitScore,
+                ExitPrimaryReason = string.IsNullOrWhiteSpace(x.ExitPrimaryReason) ? "N/A" : x.ExitPrimaryReason,
+                ExitScoreFactors = x.ExitScoreFactors.Select(MapFactor).ToList(),
                 IsSellZone = string.Equals(x.ExitSignalLabel?.ToString(), "SellZone", StringComparison.Ordinal)
             }).ToList(),
             RecentPrices = snapshot.RecentPrices
@@ -65,5 +93,16 @@ public sealed class DashboardViewModel
     public static string FormatExitSignal(string? signal)
     {
         return signal?.ToUpperInvariant().Replace("TRIMTAKEPROFIT", "TRIM / TAKE PROFIT").Replace("SELLZONE", "SELL ZONE") ?? "N/A";
+    }
+
+    private static SignalScoreFactorViewModel MapFactor(ScoreFactorDetail factor)
+    {
+        return new SignalScoreFactorViewModel
+        {
+            Label = factor.Label,
+            Points = factor.Points,
+            Triggered = factor.Triggered,
+            Description = factor.Description
+        };
     }
 }
