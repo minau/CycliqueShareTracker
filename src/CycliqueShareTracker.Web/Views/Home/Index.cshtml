@@ -266,20 +266,8 @@
 
         const sharedZoomPluginOptions = (currentChart, siblingChart, shouldAdjustYAxis) => ({
             pan: {
-                enabled: true,
-                mode: 'x',
-                threshold: 2,
-                onPan: () => {
-                    if (shouldAdjustYAxis) {
-                        setYScaleToVisibleRange(currentChart, true);
-                    }
-                },
-                onPanComplete: () => {
-                    if (shouldAdjustYAxis) {
-                        setYScaleToVisibleRange(currentChart, true);
-                    }
-                    syncXAxis(currentChart, siblingChart);
-                }
+                enabled: false,
+                mode: 'x'
             },
             zoom: {
                 wheel: {
@@ -492,6 +480,108 @@
         });
 
 
+
+        const configureMouseDragPan = () => {
+            if (!priceChart || !rsiChart) {
+                return;
+            }
+
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartMin = 0;
+            let dragStartMax = 0;
+
+            const getVisibleRange = () => {
+                const xScale = priceChart.scales.x;
+                if (!xScale) {
+                    return null;
+                }
+
+                const min = Number(xScale.min);
+                const max = Number(xScale.max);
+                if (Number.isNaN(min) || Number.isNaN(max)) {
+                    return null;
+                }
+
+                return { min, max, xScale };
+            };
+
+            const applySharedRange = (min, max) => {
+                priceChart.options.scales.x.min = min;
+                priceChart.options.scales.x.max = max;
+                rsiChart.options.scales.x.min = min;
+                rsiChart.options.scales.x.max = max;
+                priceChart.update('none');
+                rsiChart.update('none');
+                setYScaleToVisibleRange(priceChart, true);
+            };
+
+            const onMouseMove = event => {
+                if (!isDragging) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                const pixelSpan = currentRange.xScale.right - currentRange.xScale.left;
+                if (pixelSpan <= 0) {
+                    return;
+                }
+
+                const indexSpan = dragStartMax - dragStartMin;
+                if (indexSpan <= 0) {
+                    return;
+                }
+
+                const deltaX = event.clientX - dragStartX;
+                const shift = -(deltaX / pixelSpan) * indexSpan;
+                const maxIndex = labels.length - 1;
+                const maxMin = Math.max(0, maxIndex - indexSpan);
+                const targetMin = Math.min(maxMin, Math.max(0, dragStartMin + shift));
+                const targetMax = targetMin + indexSpan;
+
+                applySharedRange(targetMin, targetMax);
+            };
+
+            const stopDragging = () => {
+                if (!isDragging) {
+                    return;
+                }
+
+                isDragging = false;
+                document.body.classList.remove('chart-pan-active');
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', stopDragging);
+            };
+
+            const startDragging = event => {
+                if (event.button !== 0) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                dragStartX = event.clientX;
+                dragStartMin = currentRange.min;
+                dragStartMax = currentRange.max;
+                isDragging = true;
+                document.body.classList.add('chart-pan-active');
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', stopDragging);
+            };
+
+            const priceCanvas = document.getElementById('priceChart');
+            const rsiCanvas = document.getElementById('rsiChart');
+            priceCanvas?.addEventListener('mousedown', startDragging);
+            rsiCanvas?.addEventListener('mousedown', startDragging);
+        };
+
         const configureChartResizeHandle = () => {
             if (!chartContainer || !chartResizeHandle || !window.matchMedia('(pointer:fine)').matches) {
                 return;
@@ -536,6 +626,7 @@
         rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, priceChart, false);
 
         configureChartResizeHandle();
+        configureMouseDragPan();
         setYScaleToVisibleRange(priceChart, true);
         syncXAxis(priceChart, rsiChart);
     })();
