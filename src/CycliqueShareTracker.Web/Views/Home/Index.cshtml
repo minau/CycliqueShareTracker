@@ -54,13 +54,15 @@
 
 <section class="card">
     <form method="get" asp-action="Index">
-        <input type="hidden" name="includeMacdInScoring" value="false" />
+        <input id="includeMacdInScoringHidden"
+               type="hidden"
+               name="includeMacdInScoring"
+               value="@(Model.IncludeMacdInScoring ? "true" : "false")" />
         <label>
             <input type="checkbox"
-                   name="includeMacdInScoring"
-                   value="true"
+                   id="includeMacdInScoringToggle"
                    @(Model.IncludeMacdInScoring ? "checked" : null)
-                   onchange="this.form.submit()" />
+                   onchange="document.getElementById('includeMacdInScoringHidden').value = this.checked ? 'true' : 'false'; this.form.submit();" />
             Activer le MACD pour les signaux Buy/Sell
         </label>
     </form>
