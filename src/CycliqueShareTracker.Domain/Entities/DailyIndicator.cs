@@ -9,6 +9,8 @@ public class DailyIndicator
     public decimal? Sma200 { get; set; }
     public decimal? Rsi14 { get; set; }
     public decimal? Drawdown52WeeksPercent { get; set; }
+    public decimal? Ema12 { get; set; }
+    public decimal? Ema26 { get; set; }
     public decimal? MacdLine { get; set; }
     public decimal? MacdSignalLine { get; set; }
     public decimal? MacdHistogram { get; set; }

@@ -17,7 +17,10 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
         }
 
         var ordered = prices.OrderBy(p => p.Date).ToList();
-        var macdLineSeries = ComputeEmaDifference(ordered, MacdFastPeriod, MacdSlowPeriod);
+        var closeSeries = ordered.Select(x => (decimal?)x.Close).ToList();
+        var ema12Series = ComputeEma(closeSeries, MacdFastPeriod);
+        var ema26Series = ComputeEma(closeSeries, MacdSlowPeriod);
+        var macdLineSeries = ComputeEmaDifference(ema12Series, ema26Series);
         var macdSignalSeries = ComputeEma(macdLineSeries, MacdSignalPeriod);
         var results = new List<ComputedIndicator>(ordered.Count);
 
@@ -77,19 +80,19 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
                 macdLine,
                 macdSignal,
                 macdHistogram,
-                previousMacdHistogram));
+                previousMacdHistogram,
+                ema12Series[i],
+                ema26Series[i]));
         }
 
         return results;
     }
 
-    private static decimal?[] ComputeEmaDifference(IReadOnlyList<PriceBar> bars, int fastPeriod, int slowPeriod)
+    private static decimal?[] ComputeEmaDifference(IReadOnlyList<decimal?> fastEma, IReadOnlyList<decimal?> slowEma)
     {
-        var fastEma = ComputeEma(bars.Select(x => (decimal?)x.Close).ToList(), fastPeriod);
-        var slowEma = ComputeEma(bars.Select(x => (decimal?)x.Close).ToList(), slowPeriod);
-        var result = new decimal?[bars.Count];
+        var result = new decimal?[fastEma.Count];
 
-        for (var i = 0; i < bars.Count; i++)
+        for (var i = 0; i < fastEma.Count; i++)
         {
             if (fastEma[i].HasValue && slowEma[i].HasValue)
             {

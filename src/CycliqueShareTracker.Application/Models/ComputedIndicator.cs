@@ -11,4 +11,6 @@ public sealed record ComputedIndicator(
     decimal? MacdLine = null,
     decimal? MacdSignalLine = null,
     decimal? MacdHistogram = null,
-    decimal? PreviousMacdHistogram = null);
+    decimal? PreviousMacdHistogram = null,
+    decimal? Ema12 = null,
+    decimal? Ema26 = null);

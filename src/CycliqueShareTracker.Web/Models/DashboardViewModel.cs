@@ -11,6 +11,8 @@ public sealed class DashboardViewModel
     public decimal? DayChangePercent { get; init; }
     public decimal? Sma50 { get; init; }
     public decimal? Sma200 { get; init; }
+    public decimal? Ema12 { get; init; }
+    public decimal? Ema26 { get; init; }
     public decimal? Rsi14 { get; init; }
     public decimal? Drawdown52WeeksPercent { get; init; }
     public decimal? MacdLine { get; init; }
@@ -41,6 +43,8 @@ public sealed class DashboardViewModel
             DayChangePercent = snapshot.DayChangePercent,
             Sma50 = snapshot.Sma50,
             Sma200 = snapshot.Sma200,
+            Ema12 = snapshot.Ema12,
+            Ema26 = snapshot.Ema26,
             Rsi14 = snapshot.Rsi14,
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
             MacdLine = snapshot.MacdLine,

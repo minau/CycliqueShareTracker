@@ -10,6 +10,8 @@ public sealed record DashboardSnapshot(
     decimal? DayChangePercent,
     decimal? Sma50,
     decimal? Sma200,
+    decimal? Ema12,
+    decimal? Ema26,
     decimal? Rsi14,
     decimal? Drawdown52WeeksPercent,
     decimal? MacdLine,

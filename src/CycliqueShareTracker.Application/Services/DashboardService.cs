@@ -142,6 +142,8 @@ public sealed class DashboardService : IDashboardService
             dayChange,
             latestIndicator?.Sma50,
             latestIndicator?.Sma200,
+            latestIndicator?.Ema12,
+            latestIndicator?.Ema26,
             latestIndicator?.Rsi14,
             latestIndicator?.Drawdown52WeeksPercent,
             latestIndicator?.MacdLine ?? latestMacdLine,
@@ -247,7 +249,9 @@ public sealed class DashboardService : IDashboardService
                 indicator?.MacdLine,
                 indicator?.MacdSignalLine,
                 indicator?.MacdHistogram,
-                previousMacdHistogram);
+                previousMacdHistogram,
+                indicator?.Ema12,
+                indicator?.Ema26);
         }
 
         return result;

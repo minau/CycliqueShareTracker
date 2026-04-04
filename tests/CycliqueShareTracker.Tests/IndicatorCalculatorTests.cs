@@ -81,4 +81,41 @@ public class IndicatorCalculatorTests
         Assert.True(latest.MacdLine > latest.MacdSignalLine);
         Assert.True(latest.PreviousMacdHistogram.HasValue);
     }
+
+    [Fact]
+    public void Compute_ShouldInitializeAndUpdateEma12_UsingSmaSeedAndStandardFormula()
+    {
+        var calculator = new IndicatorCalculator();
+        var data = new List<PriceBar>();
+        var start = new DateOnly(2025, 1, 1);
+
+        for (var i = 1; i <= 20; i++)
+        {
+            data.Add(new PriceBar(start.AddDays(i - 1), i, i, i, i, 100));
+        }
+
+        var computed = calculator.Compute(data);
+        var emaSeedIndex = 11;
+        var emaNextIndex = 12;
+
+        Assert.Equal(6.5m, computed[emaSeedIndex].Ema12);
+        Assert.Equal(7.5m, computed[emaNextIndex].Ema12);
+    }
+
+    [Fact]
+    public void Compute_ShouldReturnFirstEma26_AsSma26WhenEnoughData()
+    {
+        var calculator = new IndicatorCalculator();
+        var data = new List<PriceBar>();
+        var start = new DateOnly(2025, 1, 1);
+
+        for (var i = 1; i <= 30; i++)
+        {
+            data.Add(new PriceBar(start.AddDays(i - 1), i, i, i, i, 100));
+        }
+
+        var computed = calculator.Compute(data);
+        Assert.Equal(13.5m, computed[25].Ema26);
+        Assert.Null(computed[24].Ema26);
+    }
 }

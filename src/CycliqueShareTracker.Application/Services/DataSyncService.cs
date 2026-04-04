@@ -73,6 +73,17 @@ public sealed class DataSyncService : IDataSyncService
             .ToList();
 
         var computed = _indicatorCalculator.Compute(bars);
+        if (computed.Count > 0)
+        {
+            var latest = computed[^1];
+            if (!latest.Ema12.HasValue || !latest.Ema26.HasValue)
+            {
+                _logger.LogWarning(
+                    "Insufficient history to compute EMA values for {Symbol}. Required at least 26 closes, got {Count}.",
+                    asset.Symbol,
+                    bars.Count);
+            }
+        }
 
         var indicators = computed.Select(item => new DailyIndicator
         {
@@ -82,6 +93,8 @@ public sealed class DataSyncService : IDataSyncService
             Sma200 = item.Sma200,
             Rsi14 = item.Rsi14,
             Drawdown52WeeksPercent = item.Drawdown52WeeksPercent,
+            Ema12 = item.Ema12,
+            Ema26 = item.Ema26,
             MacdLine = item.MacdLine,
             MacdSignalLine = item.MacdSignalLine,
             MacdHistogram = item.MacdHistogram

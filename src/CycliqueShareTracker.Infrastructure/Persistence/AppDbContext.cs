@@ -40,6 +40,8 @@ public class AppDbContext : DbContext
             entity.Property(x => x.Sma200).HasColumnType("numeric(18,4)");
             entity.Property(x => x.Rsi14).HasColumnType("numeric(18,4)");
             entity.Property(x => x.Drawdown52WeeksPercent).HasColumnType("numeric(18,4)");
+            entity.Property(x => x.Ema12).HasColumnType("numeric(18,4)");
+            entity.Property(x => x.Ema26).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdSignalLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdHistogram).HasColumnType("numeric(18,4)");
