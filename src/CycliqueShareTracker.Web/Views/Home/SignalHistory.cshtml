@@ -17,8 +17,11 @@
                 <th>SMA 200</th>
                 <th>RSI 14</th>
                 <th>Drawdown 52w</th>
-                <th>Score</th>
-                <th>Signal</th>
+                <th>Entry Score</th>
+                <th>Entry Signal</th>
+                <th>Exit Score</th>
+                <th>Exit Signal</th>
+                <th>Raison principale sortie</th>
             </tr>
         </thead>
         <tbody>
@@ -33,6 +36,9 @@
                 <td>@(row.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
                 <td>@(row.Score?.ToString() ?? "N/A")</td>
                 <td>@row.Signal</td>
+                <td>@(row.ExitScore?.ToString() ?? "N/A")</td>
+                <td>@row.ExitSignal</td>
+                <td>@row.ExitPrimaryReason</td>
             </tr>
         }
         </tbody>

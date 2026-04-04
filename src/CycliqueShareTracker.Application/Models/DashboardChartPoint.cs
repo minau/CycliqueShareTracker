@@ -10,4 +10,5 @@ public sealed record DashboardChartPoint(
     decimal Close,
     decimal? Sma50,
     decimal? Sma200,
-    SignalLabel? SignalLabel);
+    SignalLabel? SignalLabel,
+    ExitSignalLabel? ExitSignalLabel);

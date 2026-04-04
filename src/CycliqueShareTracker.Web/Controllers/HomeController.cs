@@ -63,7 +63,10 @@ public class HomeController : Controller
                 Rsi14 = row.Rsi14,
                 Drawdown52WeeksPercent = row.Drawdown52WeeksPercent,
                 Score = row.Score,
-                Signal = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString())
+                Signal = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString()),
+                ExitScore = row.ExitScore,
+                ExitSignal = DashboardViewModel.FormatExitSignal(row.ExitSignalLabel?.ToString()),
+                ExitPrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason
             }).ToList()
         };
 

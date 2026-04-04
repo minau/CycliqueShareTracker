@@ -14,5 +14,8 @@ public sealed record DashboardSnapshot(
     decimal? Drawdown52WeeksPercent,
     int? Score,
     SignalLabel? SignalLabel,
+    int? ExitScore,
+    ExitSignalLabel? ExitSignalLabel,
+    string? ExitPrimaryReason,
     IReadOnlyList<DashboardChartPoint> ChartPoints,
     IReadOnlyList<PriceBar> RecentPrices);

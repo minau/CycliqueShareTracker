@@ -15,6 +15,9 @@ public sealed class DashboardViewModel
     public decimal? Drawdown52WeeksPercent { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
+    public int? ExitScore { get; init; }
+    public string ExitSignal { get; init; } = "N/A";
+    public string ExitPrimaryReason { get; init; } = "N/A";
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
@@ -34,6 +37,9 @@ public sealed class DashboardViewModel
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
             Score = snapshot.Score,
             Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
+            ExitScore = snapshot.ExitScore,
+            ExitSignal = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
+            ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
             Notice = notice,
             ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
             {
@@ -44,7 +50,8 @@ public sealed class DashboardViewModel
                 Close = x.Close,
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
-                IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal)
+                IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal),
+                IsSellZone = string.Equals(x.ExitSignalLabel?.ToString(), "SellZone", StringComparison.Ordinal)
             }).ToList(),
             RecentPrices = snapshot.RecentPrices
         };
@@ -53,5 +60,10 @@ public sealed class DashboardViewModel
     public static string FormatSignal(string? signal)
     {
         return signal?.ToUpperInvariant().Replace("NOBUY", "NO BUY").Replace("BUYZONE", "BUY ZONE") ?? "N/A";
+    }
+
+    public static string FormatExitSignal(string? signal)
+    {
+        return signal?.ToUpperInvariant().Replace("TRIMTAKEPROFIT", "TRIM / TAKE PROFIT").Replace("SELLZONE", "SELL ZONE") ?? "N/A";
     }
 }

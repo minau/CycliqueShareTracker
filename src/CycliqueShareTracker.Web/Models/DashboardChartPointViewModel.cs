@@ -10,4 +10,5 @@ public sealed class DashboardChartPointViewModel
     public decimal? Sma50 { get; init; }
     public decimal? Sma200 { get; init; }
     public bool IsBuyZone { get; init; }
+    public bool IsSellZone { get; init; }
 }

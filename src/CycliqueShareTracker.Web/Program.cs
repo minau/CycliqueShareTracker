@@ -27,6 +27,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddScoped<IIndicatorCalculator, IndicatorCalculator>();
 builder.Services.AddScoped<ISignalService, SignalService>();
+builder.Services.AddScoped<IExitSignalService, ExitSignalService>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 

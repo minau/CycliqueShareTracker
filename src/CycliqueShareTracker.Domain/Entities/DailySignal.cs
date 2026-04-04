@@ -10,5 +10,8 @@ public class DailySignal
     public int Score { get; set; }
     public SignalLabel SignalLabel { get; set; }
     public string Explanation { get; set; } = string.Empty;
+    public int ExitScore { get; set; }
+    public ExitSignalLabel ExitSignalLabel { get; set; }
+    public string ExitPrimaryReason { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

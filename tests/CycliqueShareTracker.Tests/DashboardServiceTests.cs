@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Entities;
+using CycliqueShareTracker.Domain.Enums;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -54,8 +55,26 @@ public sealed class DashboardServiceTests
         {
             Signals = new[]
             {
-                new DailySignal { AssetId = 1, Date = new DateOnly(2026, 04, 02), Score = 65, SignalLabel = Domain.Enums.SignalLabel.Hold },
-                new DailySignal { AssetId = 1, Date = new DateOnly(2026, 04, 01), Score = 72, SignalLabel = Domain.Enums.SignalLabel.BuyZone }
+                new DailySignal
+                {
+                    AssetId = 1,
+                    Date = new DateOnly(2026, 04, 02),
+                    Score = 65,
+                    SignalLabel = SignalLabel.Watch,
+                    ExitScore = 72,
+                    ExitSignalLabel = ExitSignalLabel.SellZone,
+                    ExitPrimaryReason = "Cassure sous SMA200 (tendance fragilisée)."
+                },
+                new DailySignal
+                {
+                    AssetId = 1,
+                    Date = new DateOnly(2026, 04, 01),
+                    Score = 72,
+                    SignalLabel = SignalLabel.BuyZone,
+                    ExitScore = 25,
+                    ExitSignalLabel = ExitSignalLabel.Hold,
+                    ExitPrimaryReason = "Aucun signal de sortie fort détecté."
+                }
             }
         };
 
@@ -77,7 +96,10 @@ public sealed class DashboardServiceTests
         Assert.Equal(55m, result[0].Rsi14);
         Assert.Equal(-8m, result[0].Drawdown52WeeksPercent);
         Assert.Equal(65, result[0].Score);
-        Assert.Equal(Domain.Enums.SignalLabel.Hold, result[0].SignalLabel);
+        Assert.Equal(SignalLabel.Watch, result[0].SignalLabel);
+        Assert.Equal(72, result[0].ExitScore);
+        Assert.Equal(ExitSignalLabel.SellZone, result[0].ExitSignalLabel);
+        Assert.Equal("Cassure sous SMA200 (tendance fragilisée).", result[0].ExitPrimaryReason);
     }
 
     private static DashboardService CreateService(FakePriceRepository priceRepository, int historyDays)
