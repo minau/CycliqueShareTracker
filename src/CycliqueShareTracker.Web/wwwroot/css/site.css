@@ -44,12 +44,66 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
 .factor-points { font-weight: 700; min-width: 2.1rem; }
 .signal-tooltip-reason { margin: .6rem 0 0; font-style: italic; }
 
+.chart-container {
+    position: relative;
+    height: 560px;
+    min-height: 360px;
+    max-height: 920px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+
 .chart-stack {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    height: calc(100% - 10px);
+    gap: 0.45rem;
+    padding: 0.5rem 0.5rem 0;
+    box-sizing: border-box;
 }
 
-.chart-stack canvas {
-    width: 100%;
+.chart-panel {
+    min-height: 0;
+}
+
+.chart-panel-main {
+    flex: 7;
+}
+
+.chart-panel-rsi {
+    flex: 3;
+}
+
+.chart-panel canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-resize-handle {
+    height: 10px;
+    cursor: ns-resize;
+    background: repeating-linear-gradient(
+        90deg,
+        #cbd5e1,
+        #cbd5e1 6px,
+        #e2e8f0 6px,
+        #e2e8f0 12px
+    );
+}
+
+.chart-container.is-resizing {
+    user-select: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .chart-resize-handle {
+        display: none;
+    }
+
+    .chart-stack {
+        height: 100%;
+        padding-bottom: 0.5rem;
+    }
 }
