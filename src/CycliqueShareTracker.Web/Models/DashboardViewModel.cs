@@ -4,6 +4,7 @@ namespace CycliqueShareTracker.Web.Models;
 
 public sealed class DashboardViewModel
 {
+    public string AssetSector { get; init; } = "Unknown";
     public string AssetSymbol { get; init; } = string.Empty;
     public string AssetName { get; init; } = string.Empty;
     public DateOnly? LastUpdateDate { get; init; }
@@ -33,10 +34,11 @@ public sealed class DashboardViewModel
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
-    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, bool includeMacdInScoring, string? notice = null)
+    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, bool includeMacdInScoring, string assetSector, string? notice = null)
     {
         return new DashboardViewModel
         {
+            AssetSector = assetSector,
             AssetSymbol = snapshot.AssetSymbol,
             AssetName = snapshot.AssetName,
             LastUpdateDate = snapshot.LastUpdateDate,

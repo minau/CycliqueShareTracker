@@ -4,7 +4,7 @@
     <div class="section-header">
         <h2>Historique des signaux - @Model.AssetName (@Model.AssetSymbol)</h2>
         <div class="section-header-links">
-            <a asp-controller="Home" asp-action="Index" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Retour au dashboard</a>
+            <a asp-controller="Home" asp-action="Detail" asp-route-symbol="@Model.AssetSymbol" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Retour au détail</a>
             <a asp-controller="Home" asp-action="Documentation" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Documentation</a>
         </div>
     </div>

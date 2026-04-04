@@ -16,7 +16,7 @@ public sealed class DataSyncService : IDataSyncService
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly ISignalService _signalService;
     private readonly IExitSignalService _exitSignalService;
-    private readonly AssetOptions _assetOptions;
+    private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly ILogger<DataSyncService> _logger;
 
     public DataSyncService(
@@ -28,7 +28,7 @@ public sealed class DataSyncService : IDataSyncService
         IIndicatorCalculator indicatorCalculator,
         ISignalService signalService,
         IExitSignalService exitSignalService,
-        IOptions<AssetOptions> assetOptions,
+        IOptions<WatchlistOptions> watchlistOptions,
         ILogger<DataSyncService> logger)
     {
         _dataProvider = dataProvider;
@@ -39,14 +39,28 @@ public sealed class DataSyncService : IDataSyncService
         _indicatorCalculator = indicatorCalculator;
         _signalService = signalService;
         _exitSignalService = exitSignalService;
-        _assetOptions = assetOptions.Value;
+        _watchlist = watchlistOptions.Value.Assets;
         _logger = logger;
     }
 
     public async Task RunDailyUpdateAsync(CancellationToken cancellationToken = default)
     {
-        var asset = await _assetRepository.GetOrCreateAsync(_assetOptions.Symbol, _assetOptions.Name, _assetOptions.Market, cancellationToken);
+        foreach (var trackedAsset in _watchlist)
+        {
+            try
+            {
+                await SyncAssetAsync(trackedAsset, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled error while syncing {Symbol}", trackedAsset.Symbol);
+            }
+        }
+    }
 
+    private async Task SyncAssetAsync(TrackedAssetOptions trackedAsset, CancellationToken cancellationToken)
+    {
+        var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         IReadOnlyList<PriceBar> prices;
         try
         {

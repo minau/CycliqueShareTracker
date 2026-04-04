@@ -14,7 +14,7 @@ public sealed class DashboardService : IDashboardService
     private readonly ISignalService _signalService;
     private readonly IExitSignalService _exitSignalService;
     private readonly IIndicatorCalculator _indicatorCalculator;
-    private readonly AssetOptions _assetOptions;
+    private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly DashboardOptions _dashboardOptions;
 
     public DashboardService(
@@ -25,7 +25,7 @@ public sealed class DashboardService : IDashboardService
         ISignalService signalService,
         IExitSignalService exitSignalService,
         IIndicatorCalculator indicatorCalculator,
-        IOptions<AssetOptions> assetOptions,
+        IOptions<WatchlistOptions> watchlistOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _assetRepository = assetRepository;
@@ -35,13 +35,37 @@ public sealed class DashboardService : IDashboardService
         _signalService = signalService;
         _exitSignalService = exitSignalService;
         _indicatorCalculator = indicatorCalculator;
-        _assetOptions = assetOptions.Value;
+        _watchlist = watchlistOptions.Value.Assets;
         _dashboardOptions = dashboardOptions.Value;
     }
 
-    public async Task<DashboardSnapshot> GetSnapshotAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public IReadOnlyList<TrackedAssetOptions> GetTrackedAssets()
     {
-        var asset = await _assetRepository.GetOrCreateAsync(_assetOptions.Symbol, _assetOptions.Name, _assetOptions.Market, cancellationToken);
+        return _watchlist;
+    }
+
+    public async Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    {
+        var tasks = _watchlist.Select(async trackedAsset =>
+        {
+            try
+            {
+                var snapshot = await GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+                return new AssetSnapshotResult(trackedAsset, snapshot, null);
+            }
+            catch (Exception ex)
+            {
+                return new AssetSnapshotResult(trackedAsset, null, ex.Message);
+            }
+        });
+
+        return await Task.WhenAll(tasks);
+    }
+
+    public async Task<DashboardSnapshot> GetSnapshotAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    {
+        var trackedAsset = ResolveTrackedAsset(symbol);
+        var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         var latestPrice = await _priceRepository.GetLatestAsync(asset.Id, cancellationToken);
         var latestIndicator = await _indicatorRepository.GetLatestAsync(asset.Id, cancellationToken);
         var latestSignal = await _signalRepository.GetLatestAsync(asset.Id, cancellationToken);
@@ -161,9 +185,10 @@ public sealed class DashboardService : IDashboardService
             ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList());
     }
 
-    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
-        var asset = await _assetRepository.GetOrCreateAsync(_assetOptions.Symbol, _assetOptions.Name, _assetOptions.Market, cancellationToken);
+        var trackedAsset = ResolveTrackedAsset(symbol);
+        var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
 
         var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
@@ -199,6 +224,22 @@ public sealed class DashboardService : IDashboardService
                     breakdown.Exit.ScoreFactors);
             })
             .ToList();
+    }
+
+    private TrackedAssetOptions ResolveTrackedAsset(string symbol)
+    {
+        if (_watchlist.Count == 0)
+        {
+            throw new InvalidOperationException("Watchlist configuration is empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            return _watchlist[0];
+        }
+
+        return _watchlist.FirstOrDefault(asset => string.Equals(asset.Symbol, symbol, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Symbol '{symbol}' is not configured in the watchlist.");
     }
 
     private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(

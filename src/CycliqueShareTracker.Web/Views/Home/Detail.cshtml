@@ -1,0 +1,748 @@
+@model DashboardViewModel
+@using System.Text.Json
+
+@if (!string.IsNullOrWhiteSpace(Model.Notice))
+{
+    <section class="card">
+        <p>@Model.Notice</p>
+    </section>
+}
+
+<section class="grid">
+    <div class="card">
+        <h2>@Model.AssetName (@Model.AssetSymbol)</h2>
+        <p>Secteur: @Model.AssetSector</p>
+        <p>Dernière mise à jour: @Model.LastUpdateDate</p>
+        <p>Dernier prix: @(Model.LastClose?.ToString("F2") ?? "N/A")</p>
+        <p>Variation jour: @(Model.DayChangePercent?.ToString("F2") ?? "N/A")%</p>
+    </div>
+
+    <div class="card">
+        <h3>Signal d'entrée</h3>
+        <div class="signal-tooltip">
+            <p class="signal signal-trigger" tabindex="0">@Model.Signal</p>
+            <partial name="_SignalTooltip" model="Model.EntryTooltip" />
+        </div>
+        <p>Score: @(Model.Score?.ToString() ?? "N/A") / 100</p>
+    </div>
+
+
+    <div class="card">
+        <h3>Signal de sortie</h3>
+        <div class="signal-tooltip">
+            <p class="signal signal-trigger" tabindex="0">@Model.ExitSignal</p>
+            <partial name="_SignalTooltip" model="Model.ExitTooltip" />
+        </div>
+        <p>Exit score: @(Model.ExitScore?.ToString() ?? "N/A") / 100</p>
+        <p>Raison principale: @Model.ExitPrimaryReason</p>
+    </div>
+
+    <div class="card">
+        <h3>Indicateurs</h3>
+        <ul>
+            <li>SMA50: @(Model.Sma50?.ToString("F2") ?? "N/A")</li>
+            <li>SMA200: @(Model.Sma200?.ToString("F2") ?? "N/A")</li>
+            <li>EMA12: @(Model.Ema12?.ToString("F4") ?? "N/A")</li>
+            <li>EMA26: @(Model.Ema26?.ToString("F4") ?? "N/A")</li>
+            <li>RSI14: @(Model.Rsi14?.ToString("F2") ?? "N/A")</li>
+            <li>Drawdown 52w: @(Model.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</li>
+            <li>MACD line: @(Model.MacdLine?.ToString("F4") ?? "N/A")</li>
+            <li>Signal line: @(Model.MacdSignalLine?.ToString("F4") ?? "N/A")</li>
+            <li>Histogram: @(Model.MacdHistogram?.ToString("F4") ?? "N/A")</li>
+        </ul>
+    </div>
+</section>
+
+<section class="card">
+    <form method="get" asp-action="Detail">
+        <input id="includeMacdInScoringHidden"
+               type="hidden"
+               name="includeMacdInScoring"
+               value="@(Model.IncludeMacdInScoring ? "true" : "false")" />
+        <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
+        <label>
+            <input type="checkbox"
+                   id="includeMacdInScoringToggle"
+                   @(Model.IncludeMacdInScoring ? "checked" : null)
+                   onchange="document.getElementById('includeMacdInScoringHidden').value = this.checked ? 'true' : 'false'; this.form.submit();" />
+            Activer le MACD pour les signaux Buy/Sell
+        </label>
+    </form>
+</section>
+
+<form asp-action="Refresh" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="includeMacdInScoring" value="@Model.IncludeMacdInScoring" />
+    <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
+    <button type="submit">Lancer une mise à jour manuelle</button>
+</form>
+
+<section class="card">
+    <div class="section-header">
+        <h3>Bougies & tendances (SMA50 / SMA200)</h3>
+        <div class="section-header-links">
+            <a asp-controller="Home" asp-action="SignalHistory" asp-route-symbol="@Model.AssetSymbol" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Voir l'historique des signaux</a>
+            <a asp-controller="Home" asp-action="Index" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Retour watchlist</a>
+            <a asp-controller="Home" asp-action="Documentation" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Lire la documentation</a>
+        </div>
+    </div>
+    <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
+        <div class="chart-stack">
+            <div class="chart-panel chart-panel-main">
+                <canvas id="priceChart"></canvas>
+            </div>
+            <div class="chart-panel chart-panel-rsi">
+                <canvas id="rsiChart"></canvas>
+            </div>
+            <div class="chart-panel chart-panel-macd">
+                <canvas id="macdChart"></canvas>
+            </div>
+        </div>
+        <div id="chartResizeHandle" class="chart-resize-handle" title="Redimensionner le graphique"></div>
+    </div>
+</section>
+
+<section class="card">
+    <h3>Historique récent</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model.RecentPrices)
+        {
+            <tr>
+                <td>@row.Date</td>
+                <td>@row.Open.ToString("F2")</td>
+                <td>@row.High.ToString("F2")</td>
+                <td>@row.Low.ToString("F2")</td>
+                <td>@row.Close.ToString("F2")</td>
+                <td>@row.Volume</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+@{
+    var chartDataJson = JsonSerializer.Serialize(Model.ChartPoints);
+}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script>
+    (() => {
+        const points = @Html.Raw(chartDataJson);
+        if (!points || points.length === 0) {
+            return;
+        }
+
+        const labels = points.map(x => x.Date);
+        const candleBodies = points.map(x => [Number(x.Open), Number(x.Close)]);
+        const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
+        const wickData = [];
+        const rsiData = points.map(x => x.Rsi14 === null ? null : Number(x.Rsi14));
+        const macdLineData = points.map(x => x.MacdLine === null ? null : Number(x.MacdLine));
+        const macdSignalData = points.map(x => x.MacdSignalLine === null ? null : Number(x.MacdSignalLine));
+        const macdHistogramData = points.map(x => x.MacdHistogram === null ? null : Number(x.MacdHistogram));
+        const macdHistogramColors = macdHistogramData.map(value => {
+            if (value === null) {
+                return '#9ca3af';
+            }
+
+            return value >= 0 ? '#16a34a' : '#dc2626';
+        });
+
+        points.forEach(x => {
+            wickData.push({ x: x.Date, y: Number(x.Low) });
+            wickData.push({ x: x.Date, y: Number(x.High) });
+            wickData.push({ x: x.Date, y: null });
+        });
+
+        const yPaddingRatio = 0;
+        const minYSpanAbsolute = 0.01;
+        const minYSpanRatio = 0.002;
+        const yUpdateEpsilon = 0.0001;
+
+        let lastAppliedYMin = null;
+        let lastAppliedYMax = null;
+
+        const toFiniteNumberOrNull = value => {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const setYScaleToVisibleRange = (chart, refreshChart = false) => {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            if (!xScale || !yScale) {
+                return;
+            }
+
+            const xMin = Number(xScale.min);
+            const xMax = Number(xScale.max);
+            if (Number.isNaN(xMin) || Number.isNaN(xMax)) {
+                return;
+            }
+
+            const startIndex = Math.max(0, Math.floor(xMin));
+            const endIndex = Math.min(points.length - 1, Math.ceil(xMax));
+            if (startIndex > endIndex) {
+                return;
+            }
+
+            let visibleMin = Number.POSITIVE_INFINITY;
+            let visibleMax = Number.NEGATIVE_INFINITY;
+
+            for (let i = startIndex; i <= endIndex; i++) {
+                const candidateValues = [
+                    toFiniteNumberOrNull(points[i].Low),
+                    toFiniteNumberOrNull(points[i].High),
+                    toFiniteNumberOrNull(points[i].Open),
+                    toFiniteNumberOrNull(points[i].Close),
+                    toFiniteNumberOrNull(points[i].Sma50),
+                    toFiniteNumberOrNull(points[i].Sma200)
+                ];
+
+                for (const value of candidateValues) {
+                    if (value === null) {
+                        continue;
+                    }
+
+                    visibleMin = Math.min(visibleMin, value);
+                    visibleMax = Math.max(visibleMax, value);
+                }
+            }
+
+            if (!Number.isFinite(visibleMin) || !Number.isFinite(visibleMax)) {
+                return;
+            }
+
+            const center = (visibleMax + visibleMin) / 2;
+            const dynamicMinYSpan = Math.max(Math.abs(center) * minYSpanRatio, minYSpanAbsolute);
+
+            let span = visibleMax - visibleMin;
+            if (span < dynamicMinYSpan) {
+                span = dynamicMinYSpan;
+                visibleMin = center - (span / 2);
+                visibleMax = center + (span / 2);
+            }
+
+            const padding = span * yPaddingRatio;
+            const targetMin = visibleMin - padding;
+            const targetMax = visibleMax + padding;
+
+            const minDiff = lastAppliedYMin === null ? Number.POSITIVE_INFINITY : Math.abs(targetMin - lastAppliedYMin);
+            const maxDiff = lastAppliedYMax === null ? Number.POSITIVE_INFINITY : Math.abs(targetMax - lastAppliedYMax);
+            if (minDiff < yUpdateEpsilon && maxDiff < yUpdateEpsilon) {
+                return;
+            }
+
+            chart.options.scales.y.min = targetMin;
+            chart.options.scales.y.max = targetMax;
+            lastAppliedYMin = targetMin;
+            lastAppliedYMax = targetMax;
+
+            if (refreshChart) {
+                chart.update('none');
+            }
+        };
+
+        const syncXAxis = (sourceChart, targetCharts) => {
+            const sourceScale = sourceChart.scales.x;
+            if (!sourceScale) {
+                return;
+            }
+
+            targetCharts.forEach(targetChart => {
+                targetChart.options.scales.x.min = sourceScale.min;
+                targetChart.options.scales.x.max = sourceScale.max;
+                targetChart.update('none');
+            });
+        };
+
+        const chartContainer = document.getElementById('chartContainer');
+        const chartResizeHandle = document.getElementById('chartResizeHandle');
+        const chartHeightStorageKey = 'cyclique.dashboard.chart.height';
+
+        const toIntOrFallback = (value, fallback) => {
+            const parsed = Number.parseInt(value, 10);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        };
+
+        const defaultChartHeight = toIntOrFallback(chartContainer?.dataset.defaultHeight, 560);
+        const minChartHeight = toIntOrFallback(chartContainer?.dataset.minHeight, 360);
+        const configuredMaxChartHeight = toIntOrFallback(chartContainer?.dataset.maxHeight, 920);
+
+        const getMaxChartHeight = () => {
+            const viewportMax = Math.floor(window.innerHeight * 0.85);
+            return Math.max(minChartHeight, Math.min(configuredMaxChartHeight, viewportMax));
+        };
+
+        const clampChartHeight = value => Math.min(getMaxChartHeight(), Math.max(minChartHeight, value));
+
+        const applyChartContainerHeight = (heightPx, persist = false) => {
+            if (!chartContainer) {
+                return;
+            }
+
+            const clamped = clampChartHeight(heightPx);
+            chartContainer.style.height = `${clamped}px`;
+            if (persist) {
+                localStorage.setItem(chartHeightStorageKey, String(clamped));
+            }
+        };
+
+        const initializeChartContainerHeight = () => {
+            if (!chartContainer) {
+                return;
+            }
+
+            const stored = toIntOrFallback(localStorage.getItem(chartHeightStorageKey), defaultChartHeight);
+            applyChartContainerHeight(stored, false);
+        };
+
+        const sharedZoomPluginOptions = (currentChart, siblingCharts, shouldAdjustYAxis) => ({
+            pan: {
+                enabled: false,
+                mode: 'x'
+            },
+            zoom: {
+                wheel: {
+                    enabled: true
+                },
+                pinch: {
+                    enabled: true
+                },
+                mode: 'x',
+                onZoom: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                },
+                onZoomComplete: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingCharts);
+                }
+            },
+            limits: {
+                x: {
+                    minRange: 10
+                }
+            }
+        });
+
+        initializeChartContainerHeight();
+
+        let priceChart;
+        let rsiChart;
+        let macdChart;
+
+        priceChart = new Chart(document.getElementById('priceChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Bougies',
+                        data: candleBodies,
+                        backgroundColor: candleColors,
+                        borderColor: candleColors,
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.9,
+                        order: 2
+                    },
+                    {
+                        label: 'Mèches',
+                        type: 'line',
+                        data: wickData,
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        spanGaps: false,
+                        parsing: true,
+                        order: 1
+                    },
+                    {
+                        label: 'SMA 50',
+                        type: 'line',
+                        data: points.map(x => x.Sma50 === null ? null : Number(x.Sma50)),
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15,
+                        order: 0
+                    },
+                    {
+                        label: 'SMA 200',
+                        type: 'line',
+                        data: points.map(x => x.Sma200 === null ? null : Number(x.Sma200)),
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15,
+                        order: 0
+                    },
+                    {
+                        label: 'BUY ZONE',
+                        type: 'line',
+                        data: points.map(x => x.IsBuyZone ? Number(x.Close) : null),
+                        showLine: false,
+                        pointRadius: 4,
+                        pointHoverRadius: 5,
+                        backgroundColor: '#7c3aed',
+                        borderColor: '#7c3aed',
+                        borderWidth: 1,
+                        order: -10
+                    },
+                    {
+                        label: 'SELL ZONE',
+                        type: 'line',
+                        data: points.map(x => x.IsSellZone ? Number(x.Close) : null),
+                        showLine: false,
+                        pointStyle: 'triangle',
+                        pointRadius: 6,
+                        pointHoverRadius: 7,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#f59e0b',
+                        borderWidth: 1,
+                        order: -10
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const point = points[context.dataIndex];
+                                if (!point) {
+                                    return context.formattedValue;
+                                }
+
+                                if (context.dataset.label === 'BUY ZONE' && point.IsBuyZone) {
+                                    const lines = [`BUY ZONE - score: ${point.EntryScore ?? 'N/A'}/100`];
+                                    (point.EntryScoreFactors ?? []).forEach(f => {
+                                        const marker = f.Triggered ? '✓' : '×';
+                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
+                                    });
+                                    lines.push(`Raison: ${point.EntryPrimaryReason ?? 'N/A'}`);
+                                    return lines;
+                                }
+
+                                if (context.dataset.label === 'SELL ZONE' && point.IsSellZone) {
+                                    const lines = [`SELL ZONE - score: ${point.ExitScore ?? 'N/A'}/100`];
+                                    (point.ExitScoreFactors ?? []).forEach(f => {
+                                        const marker = f.Triggered ? '✓' : '×';
+                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
+                                    });
+                                    lines.push(`Raison: ${point.ExitPrimaryReason ?? 'N/A'}`);
+                                    return lines;
+                                }
+
+                                return `${context.dataset.label}: ${context.formattedValue}`;
+                            }
+                        }
+                    },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {}
+                }
+            }
+        });
+
+        rsiChart = new Chart(document.getElementById('rsiChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'RSI 14',
+                        data: rsiData,
+                        borderColor: '#9333ea',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Seuil 70',
+                        data: labels.map(() => 70),
+                        borderColor: '#dc2626',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Seuil 30',
+                        data: labels.map(() => 30),
+                        borderColor: '#16a34a',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 10
+                        }
+                    }
+                }
+            }
+        });
+
+        macdChart = new Chart(document.getElementById('macdChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Histogram MACD',
+                        data: macdHistogramData,
+                        backgroundColor: macdHistogramColors,
+                        borderColor: macdHistogramColors,
+                        borderWidth: 1,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    },
+                    {
+                        label: 'MACD line',
+                        type: 'line',
+                        data: macdLineData,
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Signal line',
+                        type: 'line',
+                        data: macdSignalData,
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Ligne 0',
+                        type: 'line',
+                        data: labels.map(() => 0),
+                        borderColor: '#6b7280',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {}
+                }
+            }
+        });
+
+
+
+        const configureMouseDragPan = () => {
+            if (!priceChart || !rsiChart || !macdChart) {
+                return;
+            }
+
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartMin = 0;
+            let dragStartMax = 0;
+
+            const getVisibleRange = () => {
+                const xScale = priceChart.scales.x;
+                if (!xScale) {
+                    return null;
+                }
+
+                const min = Number(xScale.min);
+                const max = Number(xScale.max);
+                if (Number.isNaN(min) || Number.isNaN(max)) {
+                    return null;
+                }
+
+                return { min, max, xScale };
+            };
+
+            const applySharedRange = (min, max) => {
+                priceChart.options.scales.x.min = min;
+                priceChart.options.scales.x.max = max;
+                rsiChart.options.scales.x.min = min;
+                rsiChart.options.scales.x.max = max;
+                macdChart.options.scales.x.min = min;
+                macdChart.options.scales.x.max = max;
+                priceChart.update('none');
+                rsiChart.update('none');
+                macdChart.update('none');
+                setYScaleToVisibleRange(priceChart, true);
+            };
+
+            const onMouseMove = event => {
+                if (!isDragging) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                const pixelSpan = currentRange.xScale.right - currentRange.xScale.left;
+                if (pixelSpan <= 0) {
+                    return;
+                }
+
+                const indexSpan = dragStartMax - dragStartMin;
+                if (indexSpan <= 0) {
+                    return;
+                }
+
+                const deltaX = event.clientX - dragStartX;
+                const shift = -(deltaX / pixelSpan) * indexSpan;
+                const maxIndex = labels.length - 1;
+                const maxMin = Math.max(0, maxIndex - indexSpan);
+                const targetMin = Math.min(maxMin, Math.max(0, dragStartMin + shift));
+                const targetMax = targetMin + indexSpan;
+
+                applySharedRange(targetMin, targetMax);
+            };
+
+            const stopDragging = () => {
+                if (!isDragging) {
+                    return;
+                }
+
+                isDragging = false;
+                document.body.classList.remove('chart-pan-active');
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', stopDragging);
+            };
+
+            const startDragging = event => {
+                if (event.button !== 0) {
+                    return;
+                }
+
+                const currentRange = getVisibleRange();
+                if (!currentRange) {
+                    return;
+                }
+
+                dragStartX = event.clientX;
+                dragStartMin = currentRange.min;
+                dragStartMax = currentRange.max;
+                isDragging = true;
+                document.body.classList.add('chart-pan-active');
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', stopDragging);
+            };
+
+            const priceCanvas = document.getElementById('priceChart');
+            const rsiCanvas = document.getElementById('rsiChart');
+            const macdCanvas = document.getElementById('macdChart');
+            priceCanvas?.addEventListener('mousedown', startDragging);
+            rsiCanvas?.addEventListener('mousedown', startDragging);
+            macdCanvas?.addEventListener('mousedown', startDragging);
+        };
+
+        const configureChartResizeHandle = () => {
+            if (!chartContainer || !chartResizeHandle || !window.matchMedia('(pointer:fine)').matches) {
+                return;
+            }
+
+            let startY = 0;
+            let startHeight = 0;
+
+            const onPointerMove = event => {
+                const delta = event.clientY - startY;
+                applyChartContainerHeight(startHeight + delta, false);
+                priceChart.resize();
+                rsiChart.resize();
+                macdChart.resize();
+            };
+
+            const onPointerUp = () => {
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', onPointerUp);
+                chartContainer.classList.remove('is-resizing');
+                applyChartContainerHeight(chartContainer.clientHeight, true);
+                priceChart.resize();
+                rsiChart.resize();
+                macdChart.resize();
+            };
+
+            chartResizeHandle.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                startY = event.clientY;
+                startHeight = chartContainer.getBoundingClientRect().height;
+                chartContainer.classList.add('is-resizing');
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            });
+
+            window.addEventListener('resize', () => {
+                applyChartContainerHeight(chartContainer.clientHeight || defaultChartHeight, false);
+                priceChart.resize();
+                rsiChart.resize();
+                macdChart.resize();
+            });
+        };
+
+        priceChart.options.plugins.zoom = sharedZoomPluginOptions(priceChart, [rsiChart, macdChart], true);
+        rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, [priceChart, macdChart], false);
+        macdChart.options.plugins.zoom = sharedZoomPluginOptions(macdChart, [priceChart, rsiChart], false);
+
+        configureChartResizeHandle();
+        configureMouseDragPan();
+        setYScaleToVisibleRange(priceChart, true);
+        syncXAxis(priceChart, [rsiChart, macdChart]);
+    })();
+</script>
