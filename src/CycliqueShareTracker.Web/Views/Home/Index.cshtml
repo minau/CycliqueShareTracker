@@ -223,29 +223,6 @@
             targetChart.update('none');
         };
 
-        const syncHover = (sourceChart, targetChart, activeElements) => {
-            if (!targetChart) {
-                return;
-            }
-
-            if (!activeElements || activeElements.length === 0) {
-                targetChart.setActiveElements([]);
-                targetChart.tooltip.setActiveElements([], { x: 0, y: 0 });
-                targetChart.update('none');
-                return;
-            }
-
-            const first = activeElements[0];
-            const mapped = targetChart.data.datasets
-                .map((_, datasetIndex) => ({ datasetIndex, index: first.index }))
-                .filter(({ datasetIndex, index }) => targetChart.getDatasetMeta(datasetIndex).data[index]);
-
-            targetChart.setActiveElements(mapped);
-            targetChart.tooltip.setActiveElements(mapped, { x: first.element.x, y: first.element.y });
-            targetChart.update('none');
-        };
-
-
         const chartContainer = document.getElementById('chartContainer');
         const chartResizeHandle = document.getElementById('chartResizeHandle');
         const chartHeightStorageKey = 'cyclique.dashboard.chart.height';
@@ -416,7 +393,6 @@
             options: {
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                onHover: (_, activeElements, chart) => syncHover(chart, rsiChart, activeElements),
                 plugins: {
                     legend: { position: 'top' },
                     tooltip: {
@@ -497,7 +473,6 @@
             options: {
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                onHover: (_, activeElements, chart) => syncHover(chart, priceChart, activeElements),
                 plugins: {
                     legend: { position: 'top' },
                     zoom: {}
