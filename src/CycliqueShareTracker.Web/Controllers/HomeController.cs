@@ -1,4 +1,5 @@
 using CycliqueShareTracker.Application.Interfaces;
+using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,29 +19,106 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index([FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Index(
+        [FromQuery] bool includeMacdInScoring = true,
+        [FromQuery] string sortBy = "buy",
+        [FromQuery] string filter = "all",
+        CancellationToken cancellationToken = default)
     {
-        var snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
+        var snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(includeMacdInScoring, cancellationToken);
+
+        if (snapshots.All(x => x.Snapshot?.LastClose is null && string.IsNullOrWhiteSpace(x.Error)))
+        {
+            await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
+            snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(includeMacdInScoring, cancellationToken);
+        }
+
+        var items = snapshots.Select(item =>
+        {
+            var snapshot = item.Snapshot;
+            var status = ResolveStatus(snapshot?.SignalLabel, snapshot?.ExitSignalLabel);
+            var primaryReason = status == "Sell candidate"
+                ? snapshot?.ExitPrimaryReason
+                : snapshot?.EntryPrimaryReason;
+
+            var fallbackError = snapshot is not null && snapshot.LastClose is null
+                ? "Aucune donnée de marché disponible pour cette action."
+                : null;
+
+            return new WatchlistItemViewModel
+            {
+                Symbol = item.Asset.Symbol,
+                Name = item.Asset.Name,
+                Sector = item.Asset.Sector,
+                LastClose = snapshot?.LastClose,
+                Sma50 = snapshot?.Sma50,
+                Sma200 = snapshot?.Sma200,
+                Rsi14 = snapshot?.Rsi14,
+                Drawdown52WeeksPercent = snapshot?.Drawdown52WeeksPercent,
+                BuyScore = snapshot?.Score,
+                SellScore = snapshot?.ExitScore,
+                Status = status,
+                PrimaryReason = string.IsNullOrWhiteSpace(primaryReason) ? "N/A" : primaryReason,
+                Error = item.Error ?? fallbackError
+            };
+        });
+
+        var filtered = ApplyFilter(items, filter);
+        var ordered = ApplySort(filtered, sortBy).ToList();
+
+        var model = new WatchlistViewModel
+        {
+            IncludeMacdInScoring = includeMacdInScoring,
+            SortBy = sortBy,
+            Filter = filter,
+            TopBuySymbol = items.OrderByDescending(x => x.BuyScore ?? int.MinValue).FirstOrDefault()?.Symbol,
+            TopSellSymbol = items.OrderByDescending(x => x.SellScore ?? int.MinValue).FirstOrDefault()?.Symbol,
+            Items = ordered
+        };
+
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Detail([FromQuery] string symbol, [FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            return RedirectToAction(nameof(Index), new { includeMacdInScoring });
+        }
+
+        var trackedAsset = _dashboardService.GetTrackedAssets().FirstOrDefault(x => string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
+        if (trackedAsset is null)
+        {
+            return NotFound();
+        }
+
+        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
 
         if (snapshot.LastClose is null)
         {
             await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-            snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
+            snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
         }
 
         var notice = snapshot.LastClose is null
-            ? "Aucune donnée marché disponible actuellement. Vérifiez la configuration MarketData (provider principal/fallback), la clé API `MarketData__AlphaVantage__ApiKey` et l'accès réseau sortant, puis relancez une mise à jour."
+            ? "Aucune donnée marché disponible actuellement pour cette action. Vérifiez la configuration provider/symbol map et relancez une mise à jour."
             : null;
 
-        var model = DashboardViewModel.FromSnapshot(snapshot, includeMacdInScoring, notice);
+        var model = DashboardViewModel.FromSnapshot(snapshot, includeMacdInScoring, trackedAsset.Sector, notice);
         return View(model);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Refresh(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Refresh(string? symbol = null, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
         await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(symbol))
+        {
+            return RedirectToAction(nameof(Detail), new { symbol, includeMacdInScoring });
+        }
+
         return RedirectToAction(nameof(Index), new { includeMacdInScoring });
     }
 
@@ -52,10 +130,21 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> SignalHistory([FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> SignalHistory([FromQuery] string symbol, [FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
-        var snapshot = await _dashboardService.GetSnapshotAsync(includeMacdInScoring, cancellationToken);
-        var history = await _dashboardService.GetSignalHistoryAsync(includeMacdInScoring, cancellationToken);
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            return RedirectToAction(nameof(Index), new { includeMacdInScoring });
+        }
+
+        var trackedAsset = _dashboardService.GetTrackedAssets().FirstOrDefault(x => string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
+        if (trackedAsset is null)
+        {
+            return NotFound();
+        }
+
+        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+        var history = await _dashboardService.GetSignalHistoryAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
 
         var model = new SignalHistoryViewModel
         {
@@ -106,5 +195,42 @@ public class HomeController : Controller
         };
 
         return View(model);
+    }
+
+    private static IEnumerable<WatchlistItemViewModel> ApplySort(IEnumerable<WatchlistItemViewModel> items, string sortBy)
+    {
+        return sortBy?.ToLowerInvariant() switch
+        {
+            "sell" => items.OrderByDescending(x => x.SellScore ?? int.MinValue),
+            "name" => items.OrderBy(x => x.Name),
+            "ticker" => items.OrderBy(x => x.Symbol),
+            _ => items.OrderByDescending(x => x.BuyScore ?? int.MinValue)
+        };
+    }
+
+    private static IEnumerable<WatchlistItemViewModel> ApplyFilter(IEnumerable<WatchlistItemViewModel> items, string filter)
+    {
+        return filter?.ToLowerInvariant() switch
+        {
+            "buy" => items.Where(x => x.Status == "Buy candidate"),
+            "sell" => items.Where(x => x.Status == "Sell candidate"),
+            "neutral" => items.Where(x => x.Status == "Neutral"),
+            _ => items
+        };
+    }
+
+    private static string ResolveStatus(SignalLabel? entrySignal, ExitSignalLabel? exitSignal)
+    {
+        if (exitSignal == ExitSignalLabel.SellZone)
+        {
+            return "Sell candidate";
+        }
+
+        if (entrySignal == SignalLabel.BuyZone)
+        {
+            return "Buy candidate";
+        }
+
+        return "Neutral";
     }
 }

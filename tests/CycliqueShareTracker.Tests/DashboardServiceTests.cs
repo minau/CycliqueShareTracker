@@ -16,7 +16,7 @@ public sealed class DashboardServiceTests
         var priceRepository = new FakePriceRepository();
         var service = CreateService(priceRepository, historyDays: 252);
 
-        _ = await service.GetSnapshotAsync();
+        _ = await service.GetSnapshotAsync("TTE.PA");
 
         Assert.Equal(252, priceRepository.LastRequestedMaxRows);
     }
@@ -27,7 +27,7 @@ public sealed class DashboardServiceTests
         var priceRepository = new FakePriceRepository();
         var service = CreateService(priceRepository, historyDays: 0);
 
-        _ = await service.GetSnapshotAsync();
+        _ = await service.GetSnapshotAsync("TTE.PA");
 
         Assert.Equal(252, priceRepository.LastRequestedMaxRows);
     }
@@ -86,10 +86,16 @@ public sealed class DashboardServiceTests
             new SignalService(),
             new ExitSignalService(),
             new IndicatorCalculator(),
-            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new WatchlistOptions
+            {
+                Assets = new List<TrackedAssetOptions>
+                {
+                    new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" }
+                }
+            }),
             Options.Create(new DashboardOptions { HistoryDays = 252 }));
 
-        var result = await service.GetSignalHistoryAsync();
+        var result = await service.GetSignalHistoryAsync("TTE.PA");
 
         Assert.Equal(2, result.Count);
         Assert.Equal(new DateOnly(2026, 04, 02), result[0].Date);
@@ -134,10 +140,16 @@ public sealed class DashboardServiceTests
             new SignalService(),
             new ExitSignalService(),
             new IndicatorCalculator(),
-            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new WatchlistOptions
+            {
+                Assets = new List<TrackedAssetOptions>
+                {
+                    new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" }
+                }
+            }),
             Options.Create(new DashboardOptions { HistoryDays = 252 }));
 
-        var snapshot = await service.GetSnapshotAsync();
+        var snapshot = await service.GetSnapshotAsync("TTE.PA");
 
         Assert.Equal(0.45m, snapshot.MacdLine);
         Assert.Equal(0.30m, snapshot.MacdSignalLine);
@@ -194,10 +206,16 @@ public sealed class DashboardServiceTests
             new SignalService(),
             new ExitSignalService(),
             new IndicatorCalculator(),
-            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new WatchlistOptions
+            {
+                Assets = new List<TrackedAssetOptions>
+                {
+                    new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" }
+                }
+            }),
             Options.Create(new DashboardOptions { HistoryDays = 252 }));
 
-        var snapshot = await service.GetSnapshotAsync();
+        var snapshot = await service.GetSnapshotAsync("TTE.PA");
 
         Assert.NotNull(snapshot.Score);
         Assert.NotNull(snapshot.SignalLabel);
@@ -271,10 +289,16 @@ public sealed class DashboardServiceTests
             new SignalService(),
             new ExitSignalService(),
             new IndicatorCalculator(),
-            Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
+            Options.Create(new WatchlistOptions
+            {
+                Assets = new List<TrackedAssetOptions>
+                {
+                    new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" }
+                }
+            }),
             Options.Create(new DashboardOptions { HistoryDays = 252 }));
 
-        var snapshot = await service.GetSnapshotAsync(includeMacdInScoring: false);
+        var snapshot = await service.GetSnapshotAsync("TTE.PA", includeMacdInScoring: false);
 
         Assert.NotEqual(99, snapshot.Score);
         Assert.NotEqual(80, snapshot.ExitScore);
@@ -290,11 +314,12 @@ public sealed class DashboardServiceTests
             new SignalService(),
             new ExitSignalService(),
             new IndicatorCalculator(),
-            Options.Create(new AssetOptions
+            Options.Create(new WatchlistOptions
             {
-                Symbol = "TTE.PA",
-                Name = "TotalEnergies",
-                Market = "Euronext Paris"
+                Assets = new List<TrackedAssetOptions>
+                {
+                    new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" }
+                }
             }),
             Options.Create(new DashboardOptions
             {
