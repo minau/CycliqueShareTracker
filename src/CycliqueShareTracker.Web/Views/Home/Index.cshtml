@@ -268,11 +268,11 @@
             pan: {
                 enabled: true,
                 mode: 'x',
+                threshold: 2,
                 onPan: () => {
                     if (shouldAdjustYAxis) {
                         setYScaleToVisibleRange(currentChart, true);
                     }
-                    syncXAxis(currentChart, siblingChart);
                 },
                 onPanComplete: () => {
                     if (shouldAdjustYAxis) {
@@ -293,7 +293,6 @@
                     if (shouldAdjustYAxis) {
                         setYScaleToVisibleRange(currentChart, true);
                     }
-                    syncXAxis(currentChart, siblingChart);
                 },
                 onZoomComplete: () => {
                     if (shouldAdjustYAxis) {
