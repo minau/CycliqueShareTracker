@@ -77,7 +77,10 @@
 <section class="card">
     <div class="section-header">
         <h3>Bougies & tendances (SMA50 / SMA200)</h3>
-        <a asp-controller="Home" asp-action="SignalHistory" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Voir l'historique des signaux</a>
+        <div class="section-header-links">
+            <a asp-controller="Home" asp-action="SignalHistory" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Voir l'historique des signaux</a>
+            <a asp-controller="Home" asp-action="Documentation" asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Lire la documentation</a>
+        </div>
     </div>
     <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
         <div class="chart-stack">
