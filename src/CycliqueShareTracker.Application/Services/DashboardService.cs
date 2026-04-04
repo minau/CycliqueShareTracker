@@ -175,7 +175,7 @@ public sealed class DashboardService : IDashboardService
         {
             var current = ordered[i];
             indicatorByDate.TryGetValue(current.Date, out var indicator);
-            var previousClose = i > 0 ? ordered[i - 1].Close : null;
+            decimal? previousClose = i > 0 ? ordered[i - 1].Close : null;
             result[current.Date] = new ComputedIndicator(
                 current.Date,
                 indicator?.Sma50,
