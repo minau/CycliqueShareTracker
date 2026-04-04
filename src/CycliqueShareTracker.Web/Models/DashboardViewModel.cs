@@ -72,7 +72,13 @@ public sealed class DashboardViewModel
                 Close = x.Close,
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
+                EntryScore = x.EntryScore,
+                EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
+                EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),
                 IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal),
+                ExitScore = x.ExitScore,
+                ExitPrimaryReason = string.IsNullOrWhiteSpace(x.ExitPrimaryReason) ? "N/A" : x.ExitPrimaryReason,
+                ExitScoreFactors = x.ExitScoreFactors.Select(MapFactor).ToList(),
                 IsSellZone = string.Equals(x.ExitSignalLabel?.ToString(), "SellZone", StringComparison.Ordinal)
             }).ToList(),
             RecentPrices = snapshot.RecentPrices

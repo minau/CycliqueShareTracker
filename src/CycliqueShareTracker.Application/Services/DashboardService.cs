@@ -51,6 +51,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
+        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate);
         decimal? dayChange = null;
         if (ordered.Count >= 2 && ordered[1].Close != 0)
         {
@@ -63,6 +64,7 @@ public sealed class DashboardService : IDashboardService
             {
                 indicatorByDate.TryGetValue(price.Date, out var indicator);
                 signalByDate.TryGetValue(price.Date, out var signal);
+                var breakdown = breakdownByDate[price.Date];
                 return new DashboardChartPoint(
                     price.Date,
                     price.Open,
@@ -71,7 +73,13 @@ public sealed class DashboardService : IDashboardService
                     price.Close,
                     indicator?.Sma50,
                     indicator?.Sma200,
+                    signal?.Score,
+                    breakdown.Entry.PrimaryReason,
+                    breakdown.Entry.ScoreFactors,
                     signal?.SignalLabel,
+                    signal?.ExitScore,
+                    breakdown.Exit.PrimaryExitReason,
+                    breakdown.Exit.ScoreFactors,
                     signal?.ExitSignalLabel);
             })
             .ToList();
@@ -80,20 +88,12 @@ public sealed class DashboardService : IDashboardService
         IReadOnlyList<ScoreFactorDetail> exitFactors = Array.Empty<ScoreFactorDetail>();
         string? entryPrimaryReason = null;
         string? exitPrimaryReason = latestSignal?.ExitPrimaryReason;
-        if (latestPrice is not null && computedByDate.TryGetValue(latestPrice.Date, out var latestComputed))
+        if (latestPrice is not null && breakdownByDate.TryGetValue(latestPrice.Date, out var latestBreakdown))
         {
-            var latestEntrySignal = _signalService.BuildSignal(latestComputed);
-            var previousComputed = recentPrices
-                .Where(x => x.Date < latestPrice.Date)
-                .OrderByDescending(x => x.Date)
-                .Select(x => computedByDate[x.Date])
-                .FirstOrDefault();
-            var latestExitSignal = _exitSignalService.BuildExitSignal(latestComputed, previousComputed);
-
-            entryFactors = latestEntrySignal.ScoreFactors;
-            exitFactors = latestExitSignal.ScoreFactors;
-            entryPrimaryReason = latestEntrySignal.PrimaryReason;
-            exitPrimaryReason = latestExitSignal.PrimaryExitReason;
+            entryFactors = latestBreakdown.Entry.ScoreFactors;
+            exitFactors = latestBreakdown.Exit.ScoreFactors;
+            entryPrimaryReason = latestBreakdown.Entry.PrimaryReason;
+            exitPrimaryReason = latestBreakdown.Exit.PrimaryExitReason;
         }
 
         return new DashboardSnapshot(
@@ -130,6 +130,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
+        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate);
 
         return recentPrices
             .OrderByDescending(x => x.Date)
@@ -137,13 +138,7 @@ public sealed class DashboardService : IDashboardService
             {
                 indicatorByDate.TryGetValue(price.Date, out var indicator);
                 signalByDate.TryGetValue(price.Date, out var signal);
-                var currentComputed = computedByDate[price.Date];
-                var previousComputed = computedByDate.Values
-                    .Where(x => x.Date < price.Date)
-                    .OrderByDescending(x => x.Date)
-                    .FirstOrDefault();
-                var entrySignal = _signalService.BuildSignal(currentComputed);
-                var exitSignal = _exitSignalService.BuildExitSignal(currentComputed, previousComputed);
+                var breakdown = breakdownByDate[price.Date];
                 return new SignalHistoryRow(
                     price.Date,
                     price.Close,
@@ -153,14 +148,31 @@ public sealed class DashboardService : IDashboardService
                     indicator?.Drawdown52WeeksPercent,
                     signal?.Score,
                     signal?.SignalLabel,
-                    entrySignal.PrimaryReason,
-                    entrySignal.ScoreFactors,
+                    breakdown.Entry.PrimaryReason,
+                    breakdown.Entry.ScoreFactors,
                     signal?.ExitScore,
                     signal?.ExitSignalLabel,
-                    exitSignal.PrimaryExitReason,
-                    exitSignal.ScoreFactors);
+                    breakdown.Exit.PrimaryExitReason,
+                    breakdown.Exit.ScoreFactors);
             })
             .ToList();
+    }
+
+    private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate)
+    {
+        var breakdown = new Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)>(computedByDate.Count);
+        ComputedIndicator? previous = null;
+
+        foreach (var current in computedByDate.Values.OrderBy(x => x.Date))
+        {
+            var entrySignal = _signalService.BuildSignal(current);
+            var exitSignal = _exitSignalService.BuildExitSignal(current, previous);
+            breakdown[current.Date] = (entrySignal, exitSignal);
+            previous = current;
+        }
+
+        return breakdown;
     }
 
     private static Dictionary<DateOnly, ComputedIndicator> BuildComputedIndicatorsByDate(

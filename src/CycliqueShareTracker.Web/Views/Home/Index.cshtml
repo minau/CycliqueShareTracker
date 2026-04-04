@@ -282,6 +282,38 @@
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const point = points[context.dataIndex];
+                                if (!point) {
+                                    return context.formattedValue;
+                                }
+
+                                if (context.dataset.label === 'BUY ZONE' && point.IsBuyZone) {
+                                    const lines = [`BUY ZONE - score: ${point.EntryScore ?? 'N/A'}/100`];
+                                    (point.EntryScoreFactors ?? []).forEach(f => {
+                                        const marker = f.Triggered ? '✓' : '×';
+                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
+                                    });
+                                    lines.push(`Raison: ${point.EntryPrimaryReason ?? 'N/A'}`);
+                                    return lines;
+                                }
+
+                                if (context.dataset.label === 'SELL ZONE' && point.IsSellZone) {
+                                    const lines = [`SELL ZONE - score: ${point.ExitScore ?? 'N/A'}/100`];
+                                    (point.ExitScoreFactors ?? []).forEach(f => {
+                                        const marker = f.Triggered ? '✓' : '×';
+                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
+                                    });
+                                    lines.push(`Raison: ${point.ExitPrimaryReason ?? 'N/A'}`);
+                                    return lines;
+                                }
+
+                                return `${context.dataset.label}: ${context.formattedValue}`;
+                            }
+                        }
+                    },
                     zoom: {
                         pan: {
                             enabled: true,
