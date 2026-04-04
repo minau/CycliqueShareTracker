@@ -68,6 +68,9 @@
             <div class="chart-panel chart-panel-rsi">
                 <canvas id="rsiChart"></canvas>
             </div>
+            <div class="chart-panel chart-panel-macd">
+                <canvas id="macdChart"></canvas>
+            </div>
         </div>
         <div id="chartResizeHandle" class="chart-resize-handle" title="Redimensionner le graphique"></div>
     </div>
@@ -115,6 +118,16 @@
         const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
         const wickData = [];
         const rsiData = points.map(x => x.Rsi14 === null ? null : Number(x.Rsi14));
+        const macdLineData = points.map(x => x.MacdLine === null ? null : Number(x.MacdLine));
+        const macdSignalData = points.map(x => x.MacdSignalLine === null ? null : Number(x.MacdSignalLine));
+        const macdHistogramData = points.map(x => x.MacdHistogram === null ? null : Number(x.MacdHistogram));
+        const macdHistogramColors = macdHistogramData.map(value => {
+            if (value === null) {
+                return '#9ca3af';
+            }
+
+            return value >= 0 ? '#16a34a' : '#dc2626';
+        });
 
         points.forEach(x => {
             wickData.push({ x: x.Date, y: Number(x.Low) });
@@ -215,15 +228,17 @@
             }
         };
 
-        const syncXAxis = (sourceChart, targetChart) => {
+        const syncXAxis = (sourceChart, targetCharts) => {
             const sourceScale = sourceChart.scales.x;
             if (!sourceScale) {
                 return;
             }
 
-            targetChart.options.scales.x.min = sourceScale.min;
-            targetChart.options.scales.x.max = sourceScale.max;
-            targetChart.update('none');
+            targetCharts.forEach(targetChart => {
+                targetChart.options.scales.x.min = sourceScale.min;
+                targetChart.options.scales.x.max = sourceScale.max;
+                targetChart.update('none');
+            });
         };
 
         const chartContainer = document.getElementById('chartContainer');
@@ -267,7 +282,7 @@
             applyChartContainerHeight(stored, false);
         };
 
-        const sharedZoomPluginOptions = (currentChart, siblingChart, shouldAdjustYAxis) => ({
+        const sharedZoomPluginOptions = (currentChart, siblingCharts, shouldAdjustYAxis) => ({
             pan: {
                 enabled: false,
                 mode: 'x'
@@ -289,7 +304,7 @@
                     if (shouldAdjustYAxis) {
                         setYScaleToVisibleRange(currentChart, true);
                     }
-                    syncXAxis(currentChart, siblingChart);
+                    syncXAxis(currentChart, siblingCharts);
                 }
             },
             limits: {
@@ -303,6 +318,7 @@
 
         let priceChart;
         let rsiChart;
+        let macdChart;
 
         priceChart = new Chart(document.getElementById('priceChart'), {
             type: 'bar',
@@ -482,10 +498,71 @@
             }
         });
 
+        macdChart = new Chart(document.getElementById('macdChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Histogram MACD',
+                        data: macdHistogramData,
+                        backgroundColor: macdHistogramColors,
+                        borderColor: macdHistogramColors,
+                        borderWidth: 1,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    },
+                    {
+                        label: 'MACD line',
+                        type: 'line',
+                        data: macdLineData,
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Signal line',
+                        type: 'line',
+                        data: macdSignalData,
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Ligne 0',
+                        type: 'line',
+                        data: labels.map(() => 0),
+                        borderColor: '#6b7280',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {}
+                }
+            }
+        });
+
 
 
         const configureMouseDragPan = () => {
-            if (!priceChart || !rsiChart) {
+            if (!priceChart || !rsiChart || !macdChart) {
                 return;
             }
 
@@ -514,8 +591,11 @@
                 priceChart.options.scales.x.max = max;
                 rsiChart.options.scales.x.min = min;
                 rsiChart.options.scales.x.max = max;
+                macdChart.options.scales.x.min = min;
+                macdChart.options.scales.x.max = max;
                 priceChart.update('none');
                 rsiChart.update('none');
+                macdChart.update('none');
                 setYScaleToVisibleRange(priceChart, true);
             };
 
@@ -581,8 +661,10 @@
 
             const priceCanvas = document.getElementById('priceChart');
             const rsiCanvas = document.getElementById('rsiChart');
+            const macdCanvas = document.getElementById('macdChart');
             priceCanvas?.addEventListener('mousedown', startDragging);
             rsiCanvas?.addEventListener('mousedown', startDragging);
+            macdCanvas?.addEventListener('mousedown', startDragging);
         };
 
         const configureChartResizeHandle = () => {
@@ -598,6 +680,7 @@
                 applyChartContainerHeight(startHeight + delta, false);
                 priceChart.resize();
                 rsiChart.resize();
+                macdChart.resize();
             };
 
             const onPointerUp = () => {
@@ -607,6 +690,7 @@
                 applyChartContainerHeight(chartContainer.clientHeight, true);
                 priceChart.resize();
                 rsiChart.resize();
+                macdChart.resize();
             };
 
             chartResizeHandle.addEventListener('pointerdown', event => {
@@ -622,15 +706,17 @@
                 applyChartContainerHeight(chartContainer.clientHeight || defaultChartHeight, false);
                 priceChart.resize();
                 rsiChart.resize();
+                macdChart.resize();
             });
         };
 
-        priceChart.options.plugins.zoom = sharedZoomPluginOptions(priceChart, rsiChart, true);
-        rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, priceChart, false);
+        priceChart.options.plugins.zoom = sharedZoomPluginOptions(priceChart, [rsiChart, macdChart], true);
+        rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, [priceChart, macdChart], false);
+        macdChart.options.plugins.zoom = sharedZoomPluginOptions(macdChart, [priceChart, rsiChart], false);
 
         configureChartResizeHandle();
         configureMouseDragPan();
         setYScaleToVisibleRange(priceChart, true);
-        syncXAxis(priceChart, rsiChart);
+        syncXAxis(priceChart, [rsiChart, macdChart]);
     })();
 </script>
