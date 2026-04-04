@@ -13,6 +13,7 @@ public sealed class DashboardService : IDashboardService
     private readonly ISignalRepository _signalRepository;
     private readonly ISignalService _signalService;
     private readonly IExitSignalService _exitSignalService;
+    private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly AssetOptions _assetOptions;
     private readonly DashboardOptions _dashboardOptions;
 
@@ -23,6 +24,7 @@ public sealed class DashboardService : IDashboardService
         ISignalRepository signalRepository,
         ISignalService signalService,
         IExitSignalService exitSignalService,
+        IIndicatorCalculator indicatorCalculator,
         IOptions<AssetOptions> assetOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
@@ -32,6 +34,7 @@ public sealed class DashboardService : IDashboardService
         _signalRepository = signalRepository;
         _signalService = signalService;
         _exitSignalService = exitSignalService;
+        _indicatorCalculator = indicatorCalculator;
         _assetOptions = assetOptions.Value;
         _dashboardOptions = dashboardOptions.Value;
     }
@@ -47,6 +50,12 @@ public sealed class DashboardService : IDashboardService
         var recentIndicators = await _indicatorRepository.GetIndicatorsAsync(asset.Id, historyDays, cancellationToken);
         var recentSignals = await _signalRepository.GetSignalsAsync(asset.Id, historyDays, cancellationToken);
         var orderedIndicatorsDesc = recentIndicators.OrderByDescending(x => x.Date).ToList();
+        var computedFromPrices = _indicatorCalculator.Compute(
+            recentPrices
+                .Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume))
+                .OrderBy(p => p.Date)
+                .ToList());
+
         var latestMacdLine = orderedIndicatorsDesc
             .Select(x => x.MacdLine)
             .FirstOrDefault(x => x.HasValue);
@@ -56,6 +65,13 @@ public sealed class DashboardService : IDashboardService
         var latestMacdHistogram = orderedIndicatorsDesc
             .Select(x => x.MacdHistogram)
             .FirstOrDefault(x => x.HasValue);
+        var latestComputedWithMacd = computedFromPrices
+            .OrderByDescending(x => x.Date)
+            .FirstOrDefault(x => x.MacdLine.HasValue || x.MacdSignalLine.HasValue || x.MacdHistogram.HasValue);
+
+        latestMacdLine ??= latestComputedWithMacd?.MacdLine;
+        latestMacdSignalLine ??= latestComputedWithMacd?.MacdSignalLine;
+        latestMacdHistogram ??= latestComputedWithMacd?.MacdHistogram;
 
         var ordered = recentPrices.OrderByDescending(x => x.Date).ToList();
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
@@ -87,14 +103,14 @@ public sealed class DashboardService : IDashboardService
                     indicator?.MacdLine,
                     indicator?.MacdSignalLine,
                     indicator?.MacdHistogram,
-                    signal?.Score,
+                    signal?.Score ?? breakdown.Entry.Score,
                     breakdown.Entry.PrimaryReason,
                     breakdown.Entry.ScoreFactors,
-                    signal?.SignalLabel,
-                    signal?.ExitScore,
+                    signal?.SignalLabel ?? breakdown.Entry.Label,
+                    signal?.ExitScore ?? breakdown.Exit.ExitScore,
                     breakdown.Exit.PrimaryExitReason,
                     breakdown.Exit.ScoreFactors,
-                    signal?.ExitSignalLabel);
+                    signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal);
             })
             .ToList();
 
@@ -102,12 +118,20 @@ public sealed class DashboardService : IDashboardService
         IReadOnlyList<ScoreFactorDetail> exitFactors = Array.Empty<ScoreFactorDetail>();
         string? entryPrimaryReason = null;
         string? exitPrimaryReason = latestSignal?.ExitPrimaryReason;
+        int? latestEntryScore = latestSignal?.Score;
+        Domain.Enums.SignalLabel? latestEntryLabel = latestSignal?.SignalLabel;
+        int? latestExitScore = latestSignal?.ExitScore;
+        Domain.Enums.ExitSignalLabel? latestExitLabel = latestSignal?.ExitSignalLabel;
         if (latestPrice is not null && breakdownByDate.TryGetValue(latestPrice.Date, out var latestBreakdown))
         {
             entryFactors = latestBreakdown.Entry.ScoreFactors;
             exitFactors = latestBreakdown.Exit.ScoreFactors;
             entryPrimaryReason = latestBreakdown.Entry.PrimaryReason;
             exitPrimaryReason = latestBreakdown.Exit.PrimaryExitReason;
+            latestEntryScore ??= latestBreakdown.Entry.Score;
+            latestEntryLabel ??= latestBreakdown.Entry.Label;
+            latestExitScore ??= latestBreakdown.Exit.ExitScore;
+            latestExitLabel ??= latestBreakdown.Exit.ExitSignal;
         }
 
         return new DashboardSnapshot(
@@ -123,12 +147,12 @@ public sealed class DashboardService : IDashboardService
             latestIndicator?.MacdLine ?? latestMacdLine,
             latestIndicator?.MacdSignalLine ?? latestMacdSignalLine,
             latestIndicator?.MacdHistogram ?? latestMacdHistogram,
-            latestSignal?.Score,
-            latestSignal?.SignalLabel,
+            latestEntryScore,
+            latestEntryLabel,
             entryPrimaryReason,
             entryFactors,
-            latestSignal?.ExitScore,
-            latestSignal?.ExitSignalLabel,
+            latestExitScore,
+            latestExitLabel,
             exitPrimaryReason,
             exitFactors,
             chartPoints,
