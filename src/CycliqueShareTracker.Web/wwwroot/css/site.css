@@ -111,3 +111,53 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
         padding-bottom: 0.5rem;
     }
 }
+
+.section-header-links {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.doc-hero p {
+    margin-bottom: 0.65rem;
+}
+
+.doc-note {
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+}
+
+.doc-toc {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.doc-subsection {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.doc-subsection:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.doc-example {
+    margin-top: 0.7rem;
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 6px;
+    padding: 0.7rem;
+}
+
+.doc-glossary dt {
+    font-weight: 700;
+    margin-top: 0.65rem;
+}
+
+.doc-glossary dd {
+    margin: 0.2rem 0 0.4rem 0;
+}

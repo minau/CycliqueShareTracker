@@ -15,6 +15,7 @@
                 <div class="top-nav">
                     <a asp-controller="Home" asp-action="Index">Dashboard</a>
                     <a asp-controller="Home" asp-action="SignalHistory">Historique des signaux</a>
+                    <a asp-controller="Home" asp-action="Documentation">Documentation</a>
                     <form asp-controller="Auth" asp-action="Logout" method="post">
                         @Html.AntiForgeryToken()
                         <button type="submit">Déconnexion</button>

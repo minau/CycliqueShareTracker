@@ -44,6 +44,13 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Index), new { includeMacdInScoring });
     }
 
+
+    [HttpGet]
+    public IActionResult Documentation([FromQuery] bool includeMacdInScoring = true)
+    {
+        return View(includeMacdInScoring);
+    }
+
     [HttpGet]
     public async Task<IActionResult> SignalHistory([FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
     {
