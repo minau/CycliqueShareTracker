@@ -14,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<WatchlistOptions>(builder.Configuration.GetSection(WatchlistOptions.SectionName));
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection(DashboardOptions.SectionName));
+builder.Services.Configure<SignalStrategyOptions>(builder.Configuration.GetSection(SignalStrategyOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
 
@@ -28,6 +29,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IIndicatorCalculator, IndicatorCalculator>();
 builder.Services.AddScoped<ISignalService, SignalService>();
 builder.Services.AddScoped<IExitSignalService, ExitSignalService>();
+builder.Services.AddScoped<ISignalTimelineService, SignalTimelineService>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 

@@ -11,9 +11,8 @@ public sealed class DashboardService : IDashboardService
     private readonly IPriceRepository _priceRepository;
     private readonly IIndicatorRepository _indicatorRepository;
     private readonly ISignalRepository _signalRepository;
-    private readonly ISignalService _signalService;
-    private readonly IExitSignalService _exitSignalService;
     private readonly IIndicatorCalculator _indicatorCalculator;
+    private readonly ISignalTimelineService _signalTimelineService;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly DashboardOptions _dashboardOptions;
 
@@ -22,9 +21,8 @@ public sealed class DashboardService : IDashboardService
         IPriceRepository priceRepository,
         IIndicatorRepository indicatorRepository,
         ISignalRepository signalRepository,
-        ISignalService signalService,
-        IExitSignalService exitSignalService,
         IIndicatorCalculator indicatorCalculator,
+        ISignalTimelineService signalTimelineService,
         IOptions<WatchlistOptions> watchlistOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
@@ -32,9 +30,8 @@ public sealed class DashboardService : IDashboardService
         _priceRepository = priceRepository;
         _indicatorRepository = indicatorRepository;
         _signalRepository = signalRepository;
-        _signalService = signalService;
-        _exitSignalService = exitSignalService;
         _indicatorCalculator = indicatorCalculator;
+        _signalTimelineService = signalTimelineService;
         _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
@@ -103,7 +100,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
+        var breakdownByDate = _signalTimelineService.BuildSignalTimeline(computedByDate, includeMacdInScoring);
         decimal? dayChange = null;
         if (ordered.Count >= 2 && ordered[1].Close != 0)
         {
@@ -200,7 +197,7 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var signalByDate = recentSignals.ToDictionary(x => x.Date);
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
+        var breakdownByDate = _signalTimelineService.BuildSignalTimeline(computedByDate, includeMacdInScoring);
 
         return recentPrices
             .OrderByDescending(x => x.Date)
@@ -257,24 +254,6 @@ public sealed class DashboardService : IDashboardService
             .ToList();
     }
 
-    private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(
-        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate,
-        bool includeMacdInScoring)
-    {
-        var breakdown = new Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)>(computedByDate.Count);
-        ComputedIndicator? previous = null;
-
-        foreach (var current in computedByDate.Values.OrderBy(x => x.Date))
-        {
-            var entrySignal = _signalService.BuildSignal(current, includeMacdInScoring);
-            var exitSignal = _exitSignalService.BuildExitSignal(current, previous, includeMacdInScoring);
-            breakdown[current.Date] = (entrySignal, exitSignal);
-            previous = current;
-        }
-
-        return breakdown;
-    }
-
     private static Dictionary<DateOnly, ComputedIndicator> BuildComputedIndicatorsByDate(
         IReadOnlyList<Domain.Entities.DailyPrice> prices,
         IReadOnlyList<Domain.Entities.DailyIndicator> indicators)
@@ -282,6 +261,9 @@ public sealed class DashboardService : IDashboardService
         var indicatorByDate = indicators.ToDictionary(x => x.Date);
         var ordered = prices.OrderBy(x => x.Date).ToList();
         var result = new Dictionary<DateOnly, ComputedIndicator>(ordered.Count);
+
+        var bullishStreak = 0;
+        var bearishStreak = 0;
 
         for (var i = 0; i < ordered.Count; i++)
         {
@@ -293,6 +275,17 @@ public sealed class DashboardService : IDashboardService
             {
                 indicatorByDate.TryGetValue(ordered[i - 1].Date, out var previousIndicator);
                 previousMacdHistogram = previousIndicator?.MacdHistogram;
+            }
+
+            if (previousClose.HasValue)
+            {
+                bullishStreak = current.Close > previousClose.Value ? bullishStreak + 1 : 0;
+                bearishStreak = current.Close < previousClose.Value ? bearishStreak + 1 : 0;
+            }
+            else
+            {
+                bullishStreak = 0;
+                bearishStreak = 0;
             }
 
             result[current.Date] = new ComputedIndicator(
@@ -308,7 +301,9 @@ public sealed class DashboardService : IDashboardService
                 indicator?.MacdHistogram,
                 previousMacdHistogram,
                 indicator?.Ema12,
-                indicator?.Ema26);
+                indicator?.Ema26,
+                bullishStreak,
+                bearishStreak);
         }
 
         return result;

@@ -1,102 +1,130 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Domain.Enums;
+using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Application.Services;
 
 public sealed class SignalService : ISignalService
 {
-    public SignalResult BuildSignal(ComputedIndicator indicator, bool includeMacdInScoring = true)
+    private const int WatchThreshold = 45;
+    private readonly SignalStrategyOptions _strategyOptions;
+
+    public SignalService(IOptions<SignalStrategyOptions> strategyOptions)
     {
-        var factors = new List<ScoreFactorDetail>
+        _strategyOptions = strategyOptions.Value;
+    }
+
+    public SignalResult BuildSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true)
+    {
+        var sma50SlopePct = CalculateSlopePercent(current.Sma50, previous?.Sma50);
+        var distanceAboveSma50Pct = CalculateDistancePercent(current.Close, current.Sma50);
+        var smaGapPct = CalculateGapPercent(current.Sma50, current.Sma200);
+
+        var isPriceAboveSma200 = current.Sma200.HasValue && current.Close > current.Sma200.Value;
+        var isSma50AboveSma200 = current.Sma50.HasValue && current.Sma200.HasValue && current.Sma50.Value > current.Sma200.Value;
+        var hasPositiveSma50Slope = sma50SlopePct.HasValue && sma50SlopePct.Value >= _strategyOptions.MinSma50SlopeForBuy;
+        var isRsiInBuyRange = current.Rsi14.HasValue
+            && current.Rsi14.Value >= _strategyOptions.MinRsiForBuy
+            && current.Rsi14.Value <= _strategyOptions.MaxRsiForBuy;
+        var isDistanceToSma50Acceptable = distanceAboveSma50Pct.HasValue
+            && distanceAboveSma50Pct.Value <= _strategyOptions.MaxDistanceAboveSma50ForBuyPct;
+        var hasTrendGap = smaGapPct.HasValue && smaGapPct.Value >= _strategyOptions.MinGapBetweenSma50AndSma200Pct;
+        var isNotFlat = sma50SlopePct.HasValue && Math.Abs(sma50SlopePct.Value) >= _strategyOptions.MaxFlatSlopeThreshold;
+        var isBullishStreakAcceptable = current.BullishStreakCount <= _strategyOptions.MaxBullishStreakForBuy;
+        var hasPullbackProfile = current.PreviousClose.HasValue && current.Close <= current.PreviousClose.Value * 1.01m;
+
+        var applyMacdConfirmation = includeMacdInScoring && _strategyOptions.EnableMacdConfirmation;
+        var isMacdBullish = current.MacdLine.HasValue
+            && current.MacdSignalLine.HasValue
+            && current.MacdLine.Value > current.MacdSignalLine.Value;
+
+        var scoreFactors = new List<ScoreFactorDetail>
         {
-            new(
-                "Prix au-dessus de la SMA200",
-                30,
-                indicator.Sma200.HasValue && indicator.Close > indicator.Sma200.Value,
-                "Confirme une tendance de fond positive."),
-            new(
-                "SMA50 au-dessus de la SMA200",
-                20,
-                indicator.Sma50.HasValue && indicator.Sma200.HasValue && indicator.Sma50.Value > indicator.Sma200.Value,
-                "Structure haussière court terme > long terme."),
-            new(
-                "RSI14 entre 35 et 55",
-                20,
-                indicator.Rsi14.HasValue && indicator.Rsi14.Value >= 35m && indicator.Rsi14.Value <= 55m,
-                "Momentum équilibré, sans excès."),
-            new(
-                "Drawdown 52 semaines entre -15% et -5%",
-                20,
-                indicator.Drawdown52WeeksPercent.HasValue &&
-                indicator.Drawdown52WeeksPercent.Value >= -15m &&
-                indicator.Drawdown52WeeksPercent.Value <= -5m,
-                "Zone de rechargement recherchée."),
-            new(
-                "Prix en hausse par rapport à la veille",
-                10,
-                indicator.PreviousClose.HasValue && indicator.Close > indicator.PreviousClose.Value,
-                "Validation de momentum court terme.")
+            new("Prix au-dessus de SMA200", 22, isPriceAboveSma200, "Tendance primaire haussière."),
+            new("SMA50 au-dessus de SMA200", 18, isSma50AboveSma200, "Structure haussière propre."),
+            new("Pente SMA50 positive", 15, hasPositiveSma50Slope, "Momentum de tendance valide."),
+            new($"RSI14 dans [{_strategyOptions.MinRsiForBuy}; {_strategyOptions.MaxRsiForBuy}]", 15, isRsiInBuyRange, "RSI modéré pour un BUY."),
+            new($"Distance au-dessus SMA50 <= {_strategyOptions.MaxDistanceAboveSma50ForBuyPct}%", 12, isDistanceToSma50Acceptable, "Évite les BUY trop hauts."),
+            new("Profil pullback/rebond (pas d'accélération verticale)", 10, hasPullbackProfile, "Favorise les entrées sur repli exploitable."),
+            new($"Bougies haussières consécutives <= {_strategyOptions.MaxBullishStreakForBuy}", 8, isBullishStreakAcceptable, "Évite d'acheter après extension."),
+            new($"Écart SMA50/SMA200 >= {_strategyOptions.MinGapBetweenSma50AndSma200Pct}%", 10, hasTrendGap, "Filtre anti-range.")
         };
 
-        if (includeMacdInScoring)
+        var blockingFilters = new List<ScoreFactorDetail>
         {
-            factors.Add(new(
-                "MACD haussier : la ligne MACD est au-dessus de la ligne signal",
-                8,
-                indicator.MacdLine.HasValue &&
-                indicator.MacdSignalLine.HasValue &&
-                indicator.MacdLine.Value > indicator.MacdSignalLine.Value,
-                "Confirmation de momentum haussier."));
-            factors.Add(new(
-                "Signal MACD baissier : la ligne MACD est passée sous la ligne signal",
-                -8,
-                indicator.MacdLine.HasValue &&
-                indicator.MacdSignalLine.HasValue &&
-                indicator.MacdLine.Value < indicator.MacdSignalLine.Value,
-                "Momentum orienté à la baisse."));
-            factors.Add(new(
-                "Momentum en amélioration : l'histogramme MACD augmente",
-                6,
-                indicator.MacdHistogram.HasValue &&
-                indicator.PreviousMacdHistogram.HasValue &&
-                indicator.MacdHistogram.Value > indicator.PreviousMacdHistogram.Value,
-                "Accélération positive du momentum."));
-            factors.Add(new(
-                "Momentum s'essouffle : l'histogramme MACD ralentit",
-                -6,
-                indicator.MacdHistogram.HasValue &&
-                indicator.PreviousMacdHistogram.HasValue &&
-                indicator.MacdHistogram.Value < indicator.PreviousMacdHistogram.Value,
-                "Perte de vitesse du momentum."));
+            new("Filtre bloquant: Close > SMA200", 0, isPriceAboveSma200, "Contexte haussier minimal obligatoire."),
+            new("Filtre bloquant: SMA50 > SMA200", 0, isSma50AboveSma200, "Contexte haussier minimal obligatoire."),
+            new($"Filtre bloquant: pente SMA50 >= {_strategyOptions.MinSma50SlopeForBuy}%", 0, hasPositiveSma50Slope, "Évite les BUY en tendance molle."),
+            new($"Filtre bloquant: RSI <= {_strategyOptions.MaxRsiForBuy}", 0, current.Rsi14.HasValue && current.Rsi14.Value <= _strategyOptions.MaxRsiForBuy, "Évite les BUY trop tardifs."),
+            new($"Filtre bloquant: distance au-dessus SMA50 <= {_strategyOptions.MaxDistanceAboveSma50ForBuyPct}%", 0, isDistanceToSma50Acceptable, "Évite les BUY étendus."),
+            new("Filtre bloquant: SMA50 non plate", 0, isNotFlat, "Réduit le bruit en range."),
+            new($"Filtre bloquant: écart SMA50/SMA200 >= {_strategyOptions.MinGapBetweenSma50AndSma200Pct}%", 0, hasTrendGap, "Évite les contextes indécis.")
+        };
+
+        if (applyMacdConfirmation)
+        {
+            blockingFilters.Add(new(
+                "Filtre bloquant: confirmation MACD haussière",
+                0,
+                isMacdBullish,
+                "MACD agit uniquement comme confirmation optionnelle."));
         }
 
-        var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
-        var reasons = factors.Where(x => x.Triggered).Select(x => x.Label).ToList();
+        var score = Math.Clamp(scoreFactors.Where(x => x.Triggered).Sum(x => x.Points), 0, 100);
+        var allBlockingFiltersPassed = blockingFilters.All(x => x.Triggered);
+        var isBuyValidated = score >= _strategyOptions.BuyScoreThreshold && allBlockingFiltersPassed;
 
-        score = Math.Clamp(score, 0, 100);
-        var label = score switch
+        var label = isBuyValidated
+            ? SignalLabel.BuyZone
+            : score >= WatchThreshold
+                ? SignalLabel.Watch
+                : SignalLabel.NoBuy;
+
+        var triggeredScoreReasons = scoreFactors.Where(f => f.Triggered).Select(f => f.Label);
+        var blockedReasons = blockingFilters.Where(f => !f.Triggered).Select(f => f.Label).ToList();
+        var explanation = string.Join("; ", triggeredScoreReasons.Concat(blockedReasons.Select(x => $"Non validé: {x}")));
+        if (string.IsNullOrWhiteSpace(explanation))
         {
-            <= 39 => SignalLabel.NoBuy,
-            <= 69 => SignalLabel.Watch,
-            _ => SignalLabel.BuyZone
-        };
+            explanation = "Aucun critère BUY validé.";
+        }
 
-        var explanation = reasons.Count == 0
-            ? "Aucun critère haussier validé."
-            : string.Join("; ", reasons);
+        var primaryReason = isBuyValidated
+            ? "BUY validé : tendance haussière + RSI modéré + proximité SMA50 + score suffisant."
+            : blockedReasons.Count > 0
+                ? $"BUY non validé : {string.Join(" + ", blockedReasons)}."
+                : $"BUY non validé : score insuffisant (< {_strategyOptions.BuyScoreThreshold}).";
 
-        var primaryReason = label switch
+        return new SignalResult(score, label, explanation, primaryReason, scoreFactors.Concat(blockingFilters).ToList());
+    }
+
+    private static decimal? CalculateSlopePercent(decimal? currentValue, decimal? previousValue)
+    {
+        if (!currentValue.HasValue || !previousValue.HasValue || previousValue.Value == 0)
         {
-            SignalLabel.BuyZone when factors[0].Triggered && factors[1].Triggered =>
-                "Tendance haussière de fond avec repli modéré.",
-            SignalLabel.BuyZone =>
-                "Signal d'entrée valide dans une zone de rechargement.",
-            SignalLabel.Watch =>
-                "Configuration à surveiller avec validation partielle des critères d'entrée.",
-            _ => "Conditions d'entrée insuffisantes pour le moment."
-        };
+            return null;
+        }
 
-        return new SignalResult(score, label, explanation, primaryReason, factors);
+        return ((currentValue.Value / previousValue.Value) - 1m) * 100m;
+    }
+
+    private static decimal? CalculateDistancePercent(decimal close, decimal? movingAverage)
+    {
+        if (!movingAverage.HasValue || movingAverage.Value == 0)
+        {
+            return null;
+        }
+
+        return ((close / movingAverage.Value) - 1m) * 100m;
+    }
+
+    private static decimal? CalculateGapPercent(decimal? sma50, decimal? sma200)
+    {
+        if (!sma50.HasValue || !sma200.HasValue || sma200.Value == 0)
+        {
+            return null;
+        }
+
+        return ((sma50.Value / sma200.Value) - 1m) * 100m;
     }
 }

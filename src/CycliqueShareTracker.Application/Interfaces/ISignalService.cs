@@ -4,5 +4,5 @@ namespace CycliqueShareTracker.Application.Interfaces;
 
 public interface ISignalService
 {
-    SignalResult BuildSignal(ComputedIndicator indicator, bool includeMacdInScoring = true);
+    SignalResult BuildSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true);
 }

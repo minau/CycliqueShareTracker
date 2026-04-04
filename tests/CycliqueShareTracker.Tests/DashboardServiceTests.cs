@@ -83,9 +83,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             indicatorRepository,
             signalRepository,
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
+            CreateSignalTimelineService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -137,9 +136,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             indicatorRepository,
             new FakeSignalRepository(),
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
+            CreateSignalTimelineService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -203,9 +201,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             indicatorRepository,
             new FakeSignalRepository(),
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
+            CreateSignalTimelineService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -286,9 +283,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             indicatorRepository,
             signalRepository,
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
+            CreateSignalTimelineService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -304,6 +300,14 @@ public sealed class DashboardServiceTests
         Assert.NotEqual(80, snapshot.ExitScore);
     }
 
+    private static ISignalTimelineService CreateSignalTimelineService()
+    {
+        var options = Options.Create(new SignalStrategyOptions());
+        var signalService = new SignalService(options);
+        var exitSignalService = new ExitSignalService(options);
+        return new SignalTimelineService(signalService, exitSignalService, options);
+    }
+
     private static DashboardService CreateService(FakePriceRepository priceRepository, int historyDays)
     {
         return new DashboardService(
@@ -311,9 +315,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             new FakeIndicatorRepository(),
             new FakeSignalRepository(),
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
+            CreateSignalTimelineService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
