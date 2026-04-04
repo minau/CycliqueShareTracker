@@ -111,17 +111,40 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
             return ema;
         }
 
-        var seedValues = series.Take(period).ToList();
-        if (seedValues.Any(x => !x.HasValue))
+        var seedIndex = -1;
+        for (var i = period - 1; i < series.Count; i++)
+        {
+            var windowStart = i - period + 1;
+            var hasFullWindow = true;
+            for (var j = windowStart; j <= i; j++)
+            {
+                if (!series[j].HasValue)
+                {
+                    hasFullWindow = false;
+                    break;
+                }
+            }
+
+            if (!hasFullWindow)
+            {
+                continue;
+            }
+
+            seedIndex = i;
+            break;
+        }
+
+        if (seedIndex < 0)
         {
             return ema;
         }
 
+        var seedValues = series.Skip(seedIndex - period + 1).Take(period).Select(x => x!.Value).ToList();
         var multiplier = 2m / (period + 1m);
-        var previous = seedValues.Average(x => x!.Value);
-        ema[period - 1] = decimal.Round(previous, 4);
+        var previous = seedValues.Average();
+        ema[seedIndex] = decimal.Round(previous, 4);
 
-        for (var i = period; i < series.Count; i++)
+        for (var i = seedIndex + 1; i < series.Count; i++)
         {
             if (!series[i].HasValue)
             {

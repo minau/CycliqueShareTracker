@@ -83,6 +83,26 @@ public class IndicatorCalculatorTests
     }
 
     [Fact]
+    public void Compute_ShouldInitializeMacdSignalLine_AfterMacdWarmupWindow()
+    {
+        var calculator = new IndicatorCalculator();
+        var data = new List<PriceBar>();
+        var start = new DateOnly(2025, 1, 1);
+
+        for (var i = 0; i < 60; i++)
+        {
+            var close = 100m + (i * 0.4m);
+            data.Add(new PriceBar(start.AddDays(i), close, close, close, close, 100));
+        }
+
+        var computed = calculator.Compute(data);
+
+        Assert.Null(computed[32].MacdSignalLine);
+        Assert.True(computed[33].MacdSignalLine.HasValue);
+        Assert.True(computed[33].MacdHistogram.HasValue);
+    }
+
+    [Fact]
     public void Compute_ShouldInitializeAndUpdateEma12_UsingSmaSeedAndStandardFormula()
     {
         var calculator = new IndicatorCalculator();
