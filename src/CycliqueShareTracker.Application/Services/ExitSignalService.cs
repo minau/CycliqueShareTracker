@@ -14,6 +14,9 @@ public sealed class ExitSignalService : IExitSignalService
             distanceToSma50Percent = ((current.Close / current.Sma50.Value) - 1m) * 100m;
         }
 
+        decimal? currentMacdSpread = ComputeMacdSpread(current);
+        decimal? previousMacdSpread = previous is null ? null : ComputeMacdSpread(previous);
+
         var factors = new List<ScoreFactorDetail>
         {
             new(
@@ -50,7 +53,35 @@ public sealed class ExitSignalService : IExitSignalService
                 "Cassure sous SMA200",
                 30,
                 current.Sma200.HasValue && current.Close < current.Sma200.Value,
-                "Rupture de tendance de fond.")
+                "Rupture de tendance de fond."),
+            new(
+                "Momentum en ralentissement : l'histogramme MACD diminue",
+                8,
+                current.MacdHistogram.HasValue &&
+                previous?.MacdHistogram.HasValue == true &&
+                current.MacdHistogram.Value < previous.MacdHistogram.Value,
+                "Le momentum haussier perd en intensité."),
+            new(
+                "Le MACD se rapproche de sa ligne signal, signe d'essoufflement",
+                5,
+                currentMacdSpread.HasValue &&
+                previousMacdSpread.HasValue &&
+                Math.Abs(currentMacdSpread.Value) < Math.Abs(previousMacdSpread.Value) &&
+                previousMacdSpread.Value > 0,
+                "Convergence MACD/Signal en fin d'impulsion haussière."),
+            new(
+                "Signal MACD baissier : la ligne MACD est passée sous la ligne signal",
+                12,
+                currentMacdSpread.HasValue &&
+                previousMacdSpread.HasValue &&
+                previousMacdSpread.Value >= 0 &&
+                currentMacdSpread.Value < 0,
+                "Risque de retournement à la baisse."),
+            new(
+                "Confirmation baissière : l'histogramme MACD est désormais négatif",
+                6,
+                current.MacdHistogram.HasValue && current.MacdHistogram.Value < 0,
+                "Momentum baissier désormais dominant.")
         };
 
         var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
@@ -75,5 +106,15 @@ public sealed class ExitSignalService : IExitSignalService
                         : "Aucun signal de sortie fort détecté.";
 
         return new ExitSignalResult(score, label, mainReason, factors);
+    }
+
+    private static decimal? ComputeMacdSpread(ComputedIndicator indicator)
+    {
+        if (!indicator.MacdLine.HasValue || !indicator.MacdSignalLine.HasValue)
+        {
+            return null;
+        }
+
+        return indicator.MacdLine.Value - indicator.MacdSignalLine.Value;
     }
 }
