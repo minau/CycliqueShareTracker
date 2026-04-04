@@ -1,6 +1,7 @@
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using System.Linq;
 using Xunit;
 
 namespace CycliqueShareTracker.Tests;
@@ -19,14 +20,18 @@ public class SignalServiceTests
             Rsi14: 45,
             Drawdown52WeeksPercent: -10,
             Close: 61,
-            PreviousClose: 59);
+            PreviousClose: 59,
+            MacdLine: 1.2m,
+            MacdSignalLine: 1.0m,
+            MacdHistogram: 0.2m,
+            PreviousMacdHistogram: 0.1m);
 
         var result = _service.BuildSignal(indicator);
 
         Assert.Equal(100, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
-        Assert.Equal(5, result.ScoreFactors.Count);
-        Assert.All(result.ScoreFactors, factor => Assert.True(factor.Triggered));
+        Assert.Equal(9, result.ScoreFactors.Count);
+        Assert.Equal(7, result.ScoreFactors.Count(x => x.Triggered));
         Assert.Equal("Tendance haussière de fond avec repli modéré.", result.PrimaryReason);
     }
 
@@ -40,7 +45,11 @@ public class SignalServiceTests
             Rsi14: 20,
             Drawdown52WeeksPercent: -30,
             Close: 90,
-            PreviousClose: 100);
+            PreviousClose: 100,
+            MacdLine: -0.5m,
+            MacdSignalLine: -0.2m,
+            MacdHistogram: -0.3m,
+            PreviousMacdHistogram: -0.1m);
 
         var result = _service.BuildSignal(indicator);
 
@@ -59,11 +68,15 @@ public class SignalServiceTests
             Rsi14: 40,
             Drawdown52WeeksPercent: -30,
             Close: 110,
-            PreviousClose: 100);
+            PreviousClose: 100,
+            MacdLine: 0.5m,
+            MacdSignalLine: 0.4m,
+            MacdHistogram: 0.1m,
+            PreviousMacdHistogram: 0.2m);
 
         var result = _service.BuildSignal(indicator);
 
-        Assert.Equal(60, result.Score);
+        Assert.Equal(58, result.Score);
         Assert.Equal(SignalLabel.Watch, result.Label);
     }
 
@@ -77,11 +90,15 @@ public class SignalServiceTests
             Rsi14: 40,
             Drawdown52WeeksPercent: -30,
             Close: 110,
-            PreviousClose: 100);
+            PreviousClose: 100,
+            MacdLine: 0.7m,
+            MacdSignalLine: 0.5m,
+            MacdHistogram: 0.2m,
+            PreviousMacdHistogram: 0.1m);
 
         var result = _service.BuildSignal(indicator);
 
-        Assert.Equal(80, result.Score);
+        Assert.Equal(94, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
     }
 
@@ -95,11 +112,15 @@ public class SignalServiceTests
             Rsi14: 70,
             Drawdown52WeeksPercent: -12,
             Close: 106,
-            PreviousClose: 103);
+            PreviousClose: 103,
+            MacdLine: 0.4m,
+            MacdSignalLine: 0.5m,
+            MacdHistogram: -0.1m,
+            PreviousMacdHistogram: 0.0m);
 
         var result = _service.BuildSignal(indicator);
 
-        Assert.Equal(80, result.Score);
+        Assert.Equal(74, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
     }
 }

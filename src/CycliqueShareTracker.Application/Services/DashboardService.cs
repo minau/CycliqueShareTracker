@@ -74,6 +74,9 @@ public sealed class DashboardService : IDashboardService
                     indicator?.Sma50,
                     indicator?.Sma200,
                     indicator?.Rsi14,
+                    indicator?.MacdLine,
+                    indicator?.MacdSignalLine,
+                    indicator?.MacdHistogram,
                     signal?.Score,
                     breakdown.Entry.PrimaryReason,
                     breakdown.Entry.ScoreFactors,
@@ -107,6 +110,9 @@ public sealed class DashboardService : IDashboardService
             latestIndicator?.Sma200,
             latestIndicator?.Rsi14,
             latestIndicator?.Drawdown52WeeksPercent,
+            latestIndicator?.MacdLine,
+            latestIndicator?.MacdSignalLine,
+            latestIndicator?.MacdHistogram,
             latestSignal?.Score,
             latestSignal?.SignalLabel,
             entryPrimaryReason,
@@ -189,6 +195,13 @@ public sealed class DashboardService : IDashboardService
             var current = ordered[i];
             indicatorByDate.TryGetValue(current.Date, out var indicator);
             decimal? previousClose = i > 0 ? ordered[i - 1].Close : null;
+            decimal? previousMacdHistogram = null;
+            if (i > 0)
+            {
+                indicatorByDate.TryGetValue(ordered[i - 1].Date, out var previousIndicator);
+                previousMacdHistogram = previousIndicator?.MacdHistogram;
+            }
+
             result[current.Date] = new ComputedIndicator(
                 current.Date,
                 indicator?.Sma50,
@@ -196,7 +209,11 @@ public sealed class DashboardService : IDashboardService
                 indicator?.Rsi14,
                 indicator?.Drawdown52WeeksPercent,
                 current.Close,
-                previousClose);
+                previousClose,
+                indicator?.MacdLine,
+                indicator?.MacdSignalLine,
+                indicator?.MacdHistogram,
+                previousMacdHistogram);
         }
 
         return result;

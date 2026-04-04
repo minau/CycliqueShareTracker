@@ -36,7 +36,35 @@ public sealed class SignalService : ISignalService
                 "Prix en hausse par rapport à la veille",
                 10,
                 indicator.PreviousClose.HasValue && indicator.Close > indicator.PreviousClose.Value,
-                "Validation de momentum court terme.")
+                "Validation de momentum court terme."),
+            new(
+                "MACD haussier : la ligne MACD est au-dessus de la ligne signal",
+                8,
+                indicator.MacdLine.HasValue &&
+                indicator.MacdSignalLine.HasValue &&
+                indicator.MacdLine.Value > indicator.MacdSignalLine.Value,
+                "Confirmation de momentum haussier."),
+            new(
+                "Signal MACD baissier : la ligne MACD est passée sous la ligne signal",
+                -8,
+                indicator.MacdLine.HasValue &&
+                indicator.MacdSignalLine.HasValue &&
+                indicator.MacdLine.Value < indicator.MacdSignalLine.Value,
+                "Momentum orienté à la baisse."),
+            new(
+                "Momentum en amélioration : l'histogramme MACD augmente",
+                6,
+                indicator.MacdHistogram.HasValue &&
+                indicator.PreviousMacdHistogram.HasValue &&
+                indicator.MacdHistogram.Value > indicator.PreviousMacdHistogram.Value,
+                "Accélération positive du momentum."),
+            new(
+                "Momentum s'essouffle : l'histogramme MACD ralentit",
+                -6,
+                indicator.MacdHistogram.HasValue &&
+                indicator.PreviousMacdHistogram.HasValue &&
+                indicator.MacdHistogram.Value < indicator.PreviousMacdHistogram.Value,
+                "Perte de vitesse du momentum.")
         };
 
         var score = factors.Where(x => x.Triggered).Sum(x => x.Points);

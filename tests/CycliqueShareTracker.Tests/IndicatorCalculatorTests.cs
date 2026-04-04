@@ -40,4 +40,45 @@ public class IndicatorCalculatorTests
 
         Assert.True(latest.Drawdown52WeeksPercent < 0);
     }
+
+    [Fact]
+    public void Compute_ShouldReturnNullMacdComponents_WhenHistoryIsInsufficient()
+    {
+        var calculator = new IndicatorCalculator();
+        var data = new List<PriceBar>();
+        var start = new DateOnly(2025, 1, 1);
+
+        for (var i = 0; i < 20; i++)
+        {
+            data.Add(new PriceBar(start.AddDays(i), 100, 101, 99, 100 + i, 100));
+        }
+
+        var latest = calculator.Compute(data).Last();
+
+        Assert.Null(latest.MacdLine);
+        Assert.Null(latest.MacdSignalLine);
+        Assert.Null(latest.MacdHistogram);
+    }
+
+    [Fact]
+    public void Compute_ShouldReturnMacdValues_WhenHistoryIsSufficient()
+    {
+        var calculator = new IndicatorCalculator();
+        var data = new List<PriceBar>();
+        var start = new DateOnly(2025, 1, 1);
+
+        for (var i = 0; i < 80; i++)
+        {
+            var close = 100m + (i * 0.6m);
+            data.Add(new PriceBar(start.AddDays(i), close - 1m, close + 1m, close - 2m, close, 100));
+        }
+
+        var latest = calculator.Compute(data).Last();
+
+        Assert.True(latest.MacdLine.HasValue);
+        Assert.True(latest.MacdSignalLine.HasValue);
+        Assert.True(latest.MacdHistogram.HasValue);
+        Assert.True(latest.MacdLine > latest.MacdSignalLine);
+        Assert.True(latest.PreviousMacdHistogram.HasValue);
+    }
 }

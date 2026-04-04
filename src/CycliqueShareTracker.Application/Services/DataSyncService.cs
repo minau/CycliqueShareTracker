@@ -81,7 +81,10 @@ public sealed class DataSyncService : IDataSyncService
             Sma50 = item.Sma50,
             Sma200 = item.Sma200,
             Rsi14 = item.Rsi14,
-            Drawdown52WeeksPercent = item.Drawdown52WeeksPercent
+            Drawdown52WeeksPercent = item.Drawdown52WeeksPercent,
+            MacdLine = item.MacdLine,
+            MacdSignalLine = item.MacdSignalLine,
+            MacdHistogram = item.MacdHistogram
         }).ToList();
 
         await _indicatorRepository.UpsertIndicatorsAsync(asset.Id, indicators, cancellationToken);

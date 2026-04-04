@@ -43,6 +43,9 @@
             <li>SMA200: @(Model.Sma200?.ToString("F2") ?? "N/A")</li>
             <li>RSI14: @(Model.Rsi14?.ToString("F2") ?? "N/A")</li>
             <li>Drawdown 52w: @(Model.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</li>
+            <li>MACD line: @(Model.MacdLine?.ToString("F4") ?? "N/A")</li>
+            <li>Signal line: @(Model.MacdSignalLine?.ToString("F4") ?? "N/A")</li>
+            <li>Histogram: @(Model.MacdHistogram?.ToString("F4") ?? "N/A")</li>
         </ul>
     </div>
 </section>

@@ -13,6 +13,9 @@ public sealed class DashboardViewModel
     public decimal? Sma200 { get; init; }
     public decimal? Rsi14 { get; init; }
     public decimal? Drawdown52WeeksPercent { get; init; }
+    public decimal? MacdLine { get; init; }
+    public decimal? MacdSignalLine { get; init; }
+    public decimal? MacdHistogram { get; init; }
     public int? Score { get; init; }
     public string Signal { get; init; } = "N/A";
     public string EntryPrimaryReason { get; init; } = "N/A";
@@ -40,6 +43,9 @@ public sealed class DashboardViewModel
             Sma200 = snapshot.Sma200,
             Rsi14 = snapshot.Rsi14,
             Drawdown52WeeksPercent = snapshot.Drawdown52WeeksPercent,
+            MacdLine = snapshot.MacdLine,
+            MacdSignalLine = snapshot.MacdSignalLine,
+            MacdHistogram = snapshot.MacdHistogram,
             Score = snapshot.Score,
             Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
             EntryPrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
@@ -73,6 +79,9 @@ public sealed class DashboardViewModel
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
                 Rsi14 = x.Rsi14,
+                MacdLine = x.MacdLine,
+                MacdSignalLine = x.MacdSignalLine,
+                MacdHistogram = x.MacdHistogram,
                 EntryScore = x.EntryScore,
                 EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
                 EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),
