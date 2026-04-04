@@ -9,6 +9,7 @@ public sealed class DashboardChartPointViewModel
     public decimal Close { get; init; }
     public decimal? Sma50 { get; init; }
     public decimal? Sma200 { get; init; }
+    public decimal? Rsi14 { get; init; }
     public int? EntryScore { get; init; }
     public string EntryPrimaryReason { get; init; } = "N/A";
     public IReadOnlyList<SignalScoreFactorViewModel> EntryScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();

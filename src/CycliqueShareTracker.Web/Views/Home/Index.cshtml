@@ -57,7 +57,10 @@
         <h3>Bougies & tendances (SMA50 / SMA200)</h3>
         <a asp-controller="Home" asp-action="SignalHistory">Voir l'historique des signaux</a>
     </div>
-    <canvas id="priceChart" height="110"></canvas>
+    <div class="chart-stack">
+        <canvas id="priceChart" height="110"></canvas>
+        <canvas id="rsiChart" height="42"></canvas>
+    </div>
 </section>
 
 <section class="card">
@@ -101,6 +104,7 @@
         const candleBodies = points.map(x => [Number(x.Open), Number(x.Close)]);
         const candleColors = points.map(x => Number(x.Close) >= Number(x.Open) ? '#16a34a' : '#dc2626');
         const wickData = [];
+        const rsiData = points.map(x => x.Rsi14 === null ? null : Number(x.Rsi14));
 
         points.forEach(x => {
             wickData.push({ x: x.Date, y: Number(x.Low) });
@@ -201,7 +205,88 @@
             }
         };
 
-        const chart = new Chart(document.getElementById('priceChart'), {
+        const syncXAxis = (sourceChart, targetChart) => {
+            const sourceScale = sourceChart.scales.x;
+            if (!sourceScale) {
+                return;
+            }
+
+            targetChart.options.scales.x.min = sourceScale.min;
+            targetChart.options.scales.x.max = sourceScale.max;
+            targetChart.update('none');
+        };
+
+        const syncHover = (sourceChart, targetChart, activeElements) => {
+            if (!targetChart) {
+                return;
+            }
+
+            if (!activeElements || activeElements.length === 0) {
+                targetChart.setActiveElements([]);
+                targetChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+                targetChart.update('none');
+                return;
+            }
+
+            const first = activeElements[0];
+            const mapped = targetChart.data.datasets
+                .map((_, datasetIndex) => ({ datasetIndex, index: first.index }))
+                .filter(({ datasetIndex, index }) => targetChart.getDatasetMeta(datasetIndex).data[index]);
+
+            targetChart.setActiveElements(mapped);
+            targetChart.tooltip.setActiveElements(mapped, { x: first.element.x, y: first.element.y });
+            targetChart.update('none');
+        };
+
+        const sharedZoomPluginOptions = (currentChart, siblingChart, shouldAdjustYAxis) => ({
+            pan: {
+                enabled: true,
+                mode: 'x',
+                onPan: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingChart);
+                },
+                onPanComplete: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingChart);
+                }
+            },
+            zoom: {
+                wheel: {
+                    enabled: true
+                },
+                pinch: {
+                    enabled: true
+                },
+                mode: 'x',
+                onZoom: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingChart);
+                },
+                onZoomComplete: () => {
+                    if (shouldAdjustYAxis) {
+                        setYScaleToVisibleRange(currentChart, true);
+                    }
+                    syncXAxis(currentChart, siblingChart);
+                }
+            },
+            limits: {
+                x: {
+                    minRange: 10
+                }
+            }
+        });
+
+        let priceChart;
+        let rsiChart;
+
+        priceChart = new Chart(document.getElementById('priceChart'), {
             type: 'bar',
             data: {
                 labels,
@@ -280,6 +365,7 @@
             options: {
                 maintainAspectRatio: true,
                 interaction: { mode: 'index', intersect: false },
+                onHover: (_, activeElements, chart) => syncHover(chart, rsiChart, activeElements),
                 plugins: {
                     legend: { position: 'top' },
                     tooltip: {
@@ -314,30 +400,7 @@
                             }
                         }
                     },
-                    zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: 'x',
-                            onPan: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                            onPanComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'x',
-                            onZoom: ({ chart }) => setYScaleToVisibleRange(chart, true),
-                            onZoomComplete: ({ chart }) => setYScaleToVisibleRange(chart, true)
-                        },
-                        limits: {
-                            x: {
-                                minRange: 10
-                            }
-                        }
-                    }
+                    zoom: {}
                 },
                 scales: {
                     x: {
@@ -348,6 +411,65 @@
             }
         });
 
-        setYScaleToVisibleRange(chart, true);
+        rsiChart = new Chart(document.getElementById('rsiChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'RSI 14',
+                        data: rsiData,
+                        borderColor: '#9333ea',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15
+                    },
+                    {
+                        label: 'Seuil 70',
+                        data: labels.map(() => 70),
+                        borderColor: '#dc2626',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Seuil 30',
+                        data: labels.map(() => 30),
+                        borderColor: '#16a34a',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: true,
+                interaction: { mode: 'index', intersect: false },
+                onHover: (_, activeElements, chart) => syncHover(chart, priceChart, activeElements),
+                plugins: {
+                    legend: { position: 'top' },
+                    zoom: {}
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 10
+                        }
+                    }
+                }
+            }
+        });
+
+        priceChart.options.plugins.zoom = sharedZoomPluginOptions(priceChart, rsiChart, true);
+        rsiChart.options.plugins.zoom = sharedZoomPluginOptions(rsiChart, priceChart, false);
+
+        setYScaleToVisibleRange(priceChart, true);
+        syncXAxis(priceChart, rsiChart);
     })();
 </script>

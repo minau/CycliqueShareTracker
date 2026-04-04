@@ -43,3 +43,13 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
 .signal-tooltip-factors li.not-triggered { opacity: .65; }
 .factor-points { font-weight: 700; min-width: 2.1rem; }
 .signal-tooltip-reason { margin: .6rem 0 0; font-style: italic; }
+
+.chart-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-stack canvas {
+    width: 100%;
+}

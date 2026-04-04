@@ -72,6 +72,7 @@ public sealed class DashboardViewModel
                 Close = x.Close,
                 Sma50 = x.Sma50,
                 Sma200 = x.Sma200,
+                Rsi14 = x.Rsi14,
                 EntryScore = x.EntryScore,
                 EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
                 EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),

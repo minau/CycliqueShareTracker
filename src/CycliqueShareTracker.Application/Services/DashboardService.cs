@@ -73,6 +73,7 @@ public sealed class DashboardService : IDashboardService
                     price.Close,
                     indicator?.Sma50,
                     indicator?.Sma200,
+                    indicator?.Rsi14,
                     signal?.Score,
                     breakdown.Entry.PrimaryReason,
                     breakdown.Entry.ScoreFactors,
