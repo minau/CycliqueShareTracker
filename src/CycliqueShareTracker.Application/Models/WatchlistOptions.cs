@@ -3,7 +3,7 @@ namespace CycliqueShareTracker.Application.Models;
 public sealed class WatchlistOptions
 {
     public const string SectionName = "Watchlist";
-    public List<TrackedAssetOptions> Assets { get; set; } = new()
+    public static IReadOnlyList<TrackedAssetOptions> DefaultAssets { get; } = new List<TrackedAssetOptions>
     {
         new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" },
         new() { Symbol = "CAT", Name = "Caterpillar", Sector = "Industrials", Market = "NYSE" },
@@ -11,6 +11,8 @@ public sealed class WatchlistOptions
         new() { Symbol = "DAL", Name = "Delta Air Lines", Sector = "Airlines", Market = "NYSE" },
         new() { Symbol = "PHM", Name = "PulteGroup", Sector = "Homebuilding", Market = "NYSE" }
     };
+
+    public List<TrackedAssetOptions> Assets { get; set; } = new();
 }
 
 public sealed class TrackedAssetOptions

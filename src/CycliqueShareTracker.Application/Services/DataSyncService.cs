@@ -39,7 +39,7 @@ public sealed class DataSyncService : IDataSyncService
         _indicatorCalculator = indicatorCalculator;
         _signalService = signalService;
         _exitSignalService = exitSignalService;
-        _watchlist = watchlistOptions.Value.Assets;
+        _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
         _logger = logger;
     }
 
@@ -141,5 +141,18 @@ public sealed class DataSyncService : IDataSyncService
         await _signalRepository.UpsertSignalsAsync(asset.Id, signals, cancellationToken);
 
         _logger.LogInformation("Daily update complete for {Symbol} with {Count} rows", asset.Symbol, prices.Count);
+    }
+
+    private static IReadOnlyList<TrackedAssetOptions> BuildWatchlist(IReadOnlyList<TrackedAssetOptions>? configuredAssets)
+    {
+        var source = configuredAssets is { Count: > 0 }
+            ? configuredAssets
+            : WatchlistOptions.DefaultAssets;
+
+        return source
+            .Where(asset => !string.IsNullOrWhiteSpace(asset.Symbol))
+            .GroupBy(asset => asset.Symbol.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
     }
 }

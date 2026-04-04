@@ -35,7 +35,7 @@ public sealed class DashboardService : IDashboardService
         _signalService = signalService;
         _exitSignalService = exitSignalService;
         _indicatorCalculator = indicatorCalculator;
-        _watchlist = watchlistOptions.Value.Assets;
+        _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
 
@@ -242,6 +242,19 @@ public sealed class DashboardService : IDashboardService
 
         return _watchlist.FirstOrDefault(asset => string.Equals(asset.Symbol, symbol, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Symbol '{symbol}' is not configured in the watchlist.");
+    }
+
+    private static IReadOnlyList<TrackedAssetOptions> BuildWatchlist(IReadOnlyList<TrackedAssetOptions>? configuredAssets)
+    {
+        var source = configuredAssets is { Count: > 0 }
+            ? configuredAssets
+            : WatchlistOptions.DefaultAssets;
+
+        return source
+            .Where(asset => !string.IsNullOrWhiteSpace(asset.Symbol))
+            .GroupBy(asset => asset.Symbol.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
     }
 
     private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(
