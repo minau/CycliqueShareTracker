@@ -9,6 +9,7 @@ MVP personnel en **.NET / ASP.NET Core** pour analyser l'action **TotalEnergies 
 - Calcul indicateurs: SMA50, SMA200, RSI14, drawdown 52 semaines
 - Score d'entrée sur 100 + signal textuel (`NO BUY`, `WATCH`, `BUY ZONE`)
 - Score de sortie sur 100 + signal textuel (`HOLD`, `TRIM / TAKE PROFIT`, `SELL ZONE`) + raison principale
+- Tooltips explicatifs au survol des signaux (dashboard + historique) avec détail des facteurs de score (validés/non validés) et raison métier principale
 - Dashboard web privé (auth cookie + mot de passe unique via variable d'environnement)
 - Graphique dashboard `Close + SMA50 + SMA200` (avec marqueurs `BUY ZONE` et `SELL ZONE`)
 - Page protégée **Historique des signaux** (date, close, SMA50, SMA200, RSI14, drawdown, entry score/signal, exit score/signal, raison sortie)
@@ -126,6 +127,7 @@ Mapping:
 - `65..100` => `SELL ZONE`
 
 Le dashboard affiche également la raison principale de sortie (ex: cassure SMA200, surachat, etc.).
+Les signaux d'entrée/sortie affichent un tooltip au survol avec le score total, les contributions détaillées et un résumé métier.
 
 ## Configuration
 

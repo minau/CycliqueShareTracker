@@ -83,6 +83,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             indicatorRepository,
             signalRepository,
+            new SignalService(),
+            new ExitSignalService(),
             Options.Create(new AssetOptions { Symbol = "TTE.PA", Name = "TotalEnergies", Market = "Euronext Paris" }),
             Options.Create(new DashboardOptions { HistoryDays = 252 }));
 
@@ -99,7 +101,9 @@ public sealed class DashboardServiceTests
         Assert.Equal(SignalLabel.Watch, result[0].SignalLabel);
         Assert.Equal(72, result[0].ExitScore);
         Assert.Equal(ExitSignalLabel.SellZone, result[0].ExitSignalLabel);
-        Assert.Equal("Cassure sous SMA200 (tendance fragilisée).", result[0].ExitPrimaryReason);
+        Assert.Equal("Aucun signal de sortie fort détecté.", result[0].ExitPrimaryReason);
+        Assert.NotEmpty(result[0].EntryScoreFactors);
+        Assert.NotEmpty(result[0].ExitScoreFactors);
     }
 
     private static DashboardService CreateService(FakePriceRepository priceRepository, int historyDays)
@@ -109,6 +113,8 @@ public sealed class DashboardServiceTests
             priceRepository,
             new FakeIndicatorRepository(),
             new FakeSignalRepository(),
+            new SignalService(),
+            new ExitSignalService(),
             Options.Create(new AssetOptions
             {
                 Symbol = "TTE.PA",

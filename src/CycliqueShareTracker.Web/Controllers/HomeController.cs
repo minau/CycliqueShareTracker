@@ -64,9 +64,36 @@ public class HomeController : Controller
                 Drawdown52WeeksPercent = row.Drawdown52WeeksPercent,
                 Score = row.Score,
                 Signal = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString()),
+                EntryPrimaryReason = string.IsNullOrWhiteSpace(row.EntryPrimaryReason) ? "N/A" : row.EntryPrimaryReason,
+                EntryTooltip = new SignalTooltipViewModel
+                {
+                    Title = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString()),
+                    Score = row.Score,
+                    PrimaryReason = string.IsNullOrWhiteSpace(row.EntryPrimaryReason) ? "N/A" : row.EntryPrimaryReason,
+                    Factors = row.EntryScoreFactors.Select(f => new SignalScoreFactorViewModel
+                    {
+                        Label = f.Label,
+                        Points = f.Points,
+                        Triggered = f.Triggered,
+                        Description = f.Description
+                    }).ToList()
+                },
                 ExitScore = row.ExitScore,
                 ExitSignal = DashboardViewModel.FormatExitSignal(row.ExitSignalLabel?.ToString()),
-                ExitPrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason
+                ExitPrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason,
+                ExitTooltip = new SignalTooltipViewModel
+                {
+                    Title = DashboardViewModel.FormatExitSignal(row.ExitSignalLabel?.ToString()),
+                    Score = row.ExitScore,
+                    PrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason,
+                    Factors = row.ExitScoreFactors.Select(f => new SignalScoreFactorViewModel
+                    {
+                        Label = f.Label,
+                        Points = f.Points,
+                        Triggered = f.Triggered,
+                        Description = f.Description
+                    }).ToList()
+                }
             }).ToList()
         };
 

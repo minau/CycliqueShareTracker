@@ -11,6 +11,9 @@ public sealed record SignalHistoryRow(
     decimal? Drawdown52WeeksPercent,
     int? Score,
     SignalLabel? SignalLabel,
+    string? EntryPrimaryReason,
+    IReadOnlyList<ScoreFactorDetail> EntryScoreFactors,
     int? ExitScore,
     ExitSignalLabel? ExitSignalLabel,
-    string? ExitPrimaryReason);
+    string? ExitPrimaryReason,
+    IReadOnlyList<ScoreFactorDetail> ExitScoreFactors);

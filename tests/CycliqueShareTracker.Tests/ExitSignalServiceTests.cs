@@ -26,6 +26,7 @@ public class ExitSignalServiceTests
         Assert.Equal(0, result.ExitScore);
         Assert.Equal(ExitSignalLabel.Hold, result.ExitSignal);
         Assert.Equal("Aucun signal de sortie fort détecté.", result.PrimaryExitReason);
+        Assert.Equal(6, result.ScoreFactors.Count);
     }
 
     [Fact]
@@ -56,7 +57,7 @@ public class ExitSignalServiceTests
 
         Assert.Equal(100, result.ExitScore);
         Assert.Equal(ExitSignalLabel.SellZone, result.ExitSignal);
-        Assert.Equal("Cassure sous SMA200 (tendance fragilisée).", result.PrimaryExitReason);
+        Assert.Equal("Cassure technique suggérant une sortie.", result.PrimaryExitReason);
     }
 
     [Fact]

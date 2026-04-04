@@ -18,14 +18,20 @@
 
     <div class="card">
         <h3>Signal d'entrée</h3>
-        <p class="signal">@Model.Signal</p>
+        <div class="signal-tooltip">
+            <p class="signal signal-trigger" tabindex="0">@Model.Signal</p>
+            <partial name="_SignalTooltip" model="Model.EntryTooltip" />
+        </div>
         <p>Score: @(Model.Score?.ToString() ?? "N/A") / 100</p>
     </div>
 
 
     <div class="card">
         <h3>Signal de sortie</h3>
-        <p class="signal">@Model.ExitSignal</p>
+        <div class="signal-tooltip">
+            <p class="signal signal-trigger" tabindex="0">@Model.ExitSignal</p>
+            <partial name="_SignalTooltip" model="Model.ExitTooltip" />
+        </div>
         <p>Exit score: @(Model.ExitScore?.ToString() ?? "N/A") / 100</p>
         <p>Raison principale: @Model.ExitPrimaryReason</p>
     </div>

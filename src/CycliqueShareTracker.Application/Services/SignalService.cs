@@ -8,38 +8,39 @@ public sealed class SignalService : ISignalService
 {
     public SignalResult BuildSignal(ComputedIndicator indicator)
     {
-        var score = 0;
-        var reasons = new List<string>();
-
-        if (indicator.Sma200.HasValue && indicator.Close > indicator.Sma200.Value)
+        var factors = new List<ScoreFactorDetail>
         {
-            score += 30;
-            reasons.Add("Prix au-dessus de la SMA200");
-        }
+            new(
+                "Prix au-dessus de la SMA200",
+                30,
+                indicator.Sma200.HasValue && indicator.Close > indicator.Sma200.Value,
+                "Confirme une tendance de fond positive."),
+            new(
+                "SMA50 au-dessus de la SMA200",
+                20,
+                indicator.Sma50.HasValue && indicator.Sma200.HasValue && indicator.Sma50.Value > indicator.Sma200.Value,
+                "Structure haussière court terme > long terme."),
+            new(
+                "RSI14 entre 35 et 55",
+                20,
+                indicator.Rsi14.HasValue && indicator.Rsi14.Value >= 35m && indicator.Rsi14.Value <= 55m,
+                "Momentum équilibré, sans excès."),
+            new(
+                "Drawdown 52 semaines entre -15% et -5%",
+                20,
+                indicator.Drawdown52WeeksPercent.HasValue &&
+                indicator.Drawdown52WeeksPercent.Value >= -15m &&
+                indicator.Drawdown52WeeksPercent.Value <= -5m,
+                "Zone de rechargement recherchée."),
+            new(
+                "Prix en hausse par rapport à la veille",
+                10,
+                indicator.PreviousClose.HasValue && indicator.Close > indicator.PreviousClose.Value,
+                "Validation de momentum court terme.")
+        };
 
-        if (indicator.Sma50.HasValue && indicator.Sma200.HasValue && indicator.Sma50.Value > indicator.Sma200.Value)
-        {
-            score += 20;
-            reasons.Add("SMA50 au-dessus de la SMA200");
-        }
-
-        if (indicator.Rsi14.HasValue && indicator.Rsi14.Value >= 35m && indicator.Rsi14.Value <= 55m)
-        {
-            score += 20;
-            reasons.Add("RSI14 entre 35 et 55");
-        }
-
-        if (indicator.Drawdown52WeeksPercent.HasValue && indicator.Drawdown52WeeksPercent.Value >= -15m && indicator.Drawdown52WeeksPercent.Value <= -5m)
-        {
-            score += 20;
-            reasons.Add("Drawdown 52 semaines entre -15% et -5%");
-        }
-
-        if (indicator.PreviousClose.HasValue && indicator.Close > indicator.PreviousClose.Value)
-        {
-            score += 10;
-            reasons.Add("Prix en hausse par rapport à la veille");
-        }
+        var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
+        var reasons = factors.Where(x => x.Triggered).Select(x => x.Label).ToList();
 
         score = Math.Clamp(score, 0, 100);
         var label = score switch
@@ -53,6 +54,17 @@ public sealed class SignalService : ISignalService
             ? "Aucun critère haussier validé."
             : string.Join("; ", reasons);
 
-        return new SignalResult(score, label, explanation);
+        var primaryReason = label switch
+        {
+            SignalLabel.BuyZone when factors[0].Triggered && factors[1].Triggered =>
+                "Tendance haussière de fond avec repli modéré.",
+            SignalLabel.BuyZone =>
+                "Signal d'entrée valide dans une zone de rechargement.",
+            SignalLabel.Watch =>
+                "Configuration à surveiller avec validation partielle des critères d'entrée.",
+            _ => "Conditions d'entrée insuffisantes pour le moment."
+        };
+
+        return new SignalResult(score, label, explanation, primaryReason, factors);
     }
 }

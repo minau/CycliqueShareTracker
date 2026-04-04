@@ -25,6 +25,9 @@ public class SignalServiceTests
 
         Assert.Equal(100, result.Score);
         Assert.Equal(SignalLabel.BuyZone, result.Label);
+        Assert.Equal(5, result.ScoreFactors.Count);
+        Assert.All(result.ScoreFactors, factor => Assert.True(factor.Triggered));
+        Assert.Equal("Tendance haussière de fond avec repli modéré.", result.PrimaryReason);
     }
 
     [Fact]
@@ -43,6 +46,7 @@ public class SignalServiceTests
 
         Assert.Equal(0, result.Score);
         Assert.Equal(SignalLabel.NoBuy, result.Label);
+        Assert.Equal("Conditions d'entrée insuffisantes pour le moment.", result.PrimaryReason);
     }
 
     [Fact]
