@@ -28,6 +28,8 @@ public sealed class DashboardViewModel
     public string ExitPrimaryReason { get; init; } = "N/A";
     public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
     public bool IncludeMacdInScoring { get; init; } = true;
+    public string ActiveAlgorithmType { get; init; } = "RsiMeanReversion";
+    public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
     public SignalTooltipViewModel EntryTooltip { get; init; } = new();
     public SignalTooltipViewModel ExitTooltip { get; init; } = new();
     public string? Notice { get; init; }
@@ -62,6 +64,8 @@ public sealed class DashboardViewModel
             ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
             ExitScoreFactors = snapshot.ExitScoreFactors.Select(MapFactor).ToList(),
             IncludeMacdInScoring = includeMacdInScoring,
+            ActiveAlgorithmType = snapshot.AlgorithmType.ToString(),
+            ActiveAlgorithmName = snapshot.AlgorithmName,
             EntryTooltip = new SignalTooltipViewModel
             {
                 Title = FormatSignal(snapshot.SignalLabel?.ToString()),
@@ -93,11 +97,13 @@ public sealed class DashboardViewModel
                 EntryScore = x.EntryScore,
                 EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
                 EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),
-                IsBuyZone = string.Equals(x.SignalLabel?.ToString(), "BuyZone", StringComparison.Ordinal),
+                IsBuyZone = x.IsBuyZone,
+                BuySignal = x.BuySignal,
                 ExitScore = x.ExitScore,
                 ExitPrimaryReason = string.IsNullOrWhiteSpace(x.ExitPrimaryReason) ? "N/A" : x.ExitPrimaryReason,
                 ExitScoreFactors = x.ExitScoreFactors.Select(MapFactor).ToList(),
-                IsSellZone = string.Equals(x.ExitSignalLabel?.ToString(), "SellZone", StringComparison.Ordinal)
+                IsSellZone = x.IsSellZone,
+                SellSignal = x.SellSignal
             }).ToList(),
             RecentPrices = snapshot.RecentPrices
         };

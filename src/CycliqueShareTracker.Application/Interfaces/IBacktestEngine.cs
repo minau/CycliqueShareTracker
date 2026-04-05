@@ -10,6 +10,6 @@ public interface IBacktestEngine
         IReadOnlyList<PriceBar> priceBars,
         DateOnly simulationStartDate,
         DateOnly simulationEndDate,
-        bool includeMacdInScoring,
+        AlgorithmType algorithmType,
         StrategyConfig config);
 }

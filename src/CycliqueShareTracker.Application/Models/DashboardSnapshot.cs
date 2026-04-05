@@ -26,4 +26,6 @@ public sealed record DashboardSnapshot(
     string? ExitPrimaryReason,
     IReadOnlyList<ScoreFactorDetail> ExitScoreFactors,
     IReadOnlyList<DashboardChartPoint> ChartPoints,
-    IReadOnlyList<PriceBar> RecentPrices);
+    IReadOnlyList<PriceBar> RecentPrices,
+    AlgorithmType AlgorithmType,
+    string AlgorithmName);

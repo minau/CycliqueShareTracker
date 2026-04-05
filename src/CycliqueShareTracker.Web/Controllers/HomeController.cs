@@ -1,4 +1,5 @@
 using CycliqueShareTracker.Application.Interfaces;
+using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -28,17 +29,17 @@ public class HomeController : Controller
 
     [HttpGet]
     public async Task<IActionResult> Index(
-        [FromQuery] bool includeMacdInScoring = true,
+        [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
         [FromQuery] string sortBy = "buy",
         [FromQuery] string filter = "all",
         CancellationToken cancellationToken = default)
     {
-        var snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(includeMacdInScoring, cancellationToken);
+        var snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(algorithmType, cancellationToken);
 
         if (snapshots.All(x => x.Snapshot?.LastClose is null && string.IsNullOrWhiteSpace(x.Error)))
         {
             await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-            snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(includeMacdInScoring, cancellationToken);
+            snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(algorithmType, cancellationToken);
         }
 
         var items = snapshots.Select(item =>
@@ -76,7 +77,9 @@ public class HomeController : Controller
 
         var model = new WatchlistViewModel
         {
-            IncludeMacdInScoring = includeMacdInScoring,
+            IncludeMacdInScoring = true,
+            ActiveAlgorithmType = algorithmType.ToString(),
+            ActiveAlgorithmName = algorithmType.ToDisplayName(),
             SortBy = sortBy,
             Filter = filter,
             TopBuySymbol = items.OrderByDescending(x => x.BuyScore ?? int.MinValue).FirstOrDefault()?.Symbol,
@@ -88,11 +91,11 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Detail([FromQuery] string symbol, [FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Detail([FromQuery] string symbol, [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(symbol))
         {
-            return RedirectToAction(nameof(Index), new { includeMacdInScoring });
+            return RedirectToAction(nameof(Index), new { algorithmType });
         }
 
         var trackedAsset = _dashboardService.GetTrackedAssets().FirstOrDefault(x => string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
@@ -101,33 +104,33 @@ public class HomeController : Controller
             return NotFound();
         }
 
-        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
 
         if (snapshot.LastClose is null)
         {
             await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-            snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+            snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
         }
 
         var notice = snapshot.LastClose is null
             ? "Aucune donnée marché disponible actuellement pour cette action. Vérifiez la configuration provider/symbol map et relancez une mise à jour."
             : null;
 
-        var model = DashboardViewModel.FromSnapshot(snapshot, includeMacdInScoring, trackedAsset.Sector, notice);
+        var model = DashboardViewModel.FromSnapshot(snapshot, true, trackedAsset.Sector, notice);
         return View(model);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Refresh(string? symbol = null, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Refresh(string? symbol = null, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
         await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
         if (!string.IsNullOrWhiteSpace(symbol))
         {
-            return RedirectToAction(nameof(Detail), new { symbol, includeMacdInScoring });
+            return RedirectToAction(nameof(Detail), new { symbol, algorithmType });
         }
 
-        return RedirectToAction(nameof(Index), new { includeMacdInScoring });
+        return RedirectToAction(nameof(Index), new { algorithmType });
     }
 
 
@@ -137,7 +140,7 @@ public class HomeController : Controller
         [FromQuery] string symbol = "__WATCHLIST__",
         [FromQuery] string? startDate = null,
         [FromQuery] string? endDate = null,
-        [FromQuery] bool includeMacdInScoring = true,
+        [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
         [FromQuery] bool runBacktest = false,
         CancellationToken cancellationToken = default)
     {
@@ -150,11 +153,16 @@ public class HomeController : Controller
             SelectedSymbol = string.IsNullOrWhiteSpace(symbol) ? "__WATCHLIST__" : symbol,
             StartDate = start,
             EndDate = end,
-            IncludeMacdInScoring = includeMacdInScoring,
+            IncludeMacdInScoring = true,
+            SelectedAlgorithmType = algorithmType.ToString(),
+            SelectedAlgorithmName = algorithmType.ToDisplayName(),
             SymbolOptions = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
             {
                 new("Watchlist complète", "__WATCHLIST__")
-            }.Concat(trackedAssets.Select(asset => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem($"{asset.Symbol} - {asset.Name}", asset.Symbol))).ToList()
+            }.Concat(trackedAssets.Select(asset => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem($"{asset.Symbol} - {asset.Name}", asset.Symbol))).ToList(),
+            AlgorithmOptions = Enum.GetValues<AlgorithmType>()
+                .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(x.ToDisplayName(), x.ToString(), x == algorithmType))
+                .ToList()
         };
 
         if (runBacktest)
@@ -165,14 +173,15 @@ public class HomeController : Controller
                     ? trackedAssets.Select(x => x.Symbol).ToList()
                     : new List<string> { model.SelectedSymbol };
 
-                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; IncludeMacd={IncludeMacd}",
-                    string.Join(",", symbols), model.StartDate, model.EndDate, model.IncludeMacdInScoring);
+                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
+                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType);
 
                 var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
                     model.StartDate,
                     model.EndDate,
                     symbols,
-                    model.IncludeMacdInScoring);
+                    model.IncludeMacdInScoring,
+                    algorithmType);
 
                 model.Result = await _backtestService.RunAsync(request, cancellationToken);
 
@@ -203,17 +212,17 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public IActionResult Documentation([FromQuery] bool includeMacdInScoring = true)
+    public IActionResult Documentation([FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion)
     {
-        return View(includeMacdInScoring);
+        return View(true);
     }
 
     [HttpGet]
-    public async Task<IActionResult> SignalHistory([FromQuery] string symbol, [FromQuery] bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> SignalHistory([FromQuery] string symbol, [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(symbol))
         {
-            return RedirectToAction(nameof(Index), new { includeMacdInScoring });
+            return RedirectToAction(nameof(Index), new { algorithmType });
         }
 
         var trackedAsset = _dashboardService.GetTrackedAssets().FirstOrDefault(x => string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
@@ -222,14 +231,15 @@ public class HomeController : Controller
             return NotFound();
         }
 
-        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
-        var history = await _dashboardService.GetSignalHistoryAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
+        var history = await _dashboardService.GetSignalHistoryAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
 
         var model = new SignalHistoryViewModel
         {
             AssetSymbol = snapshot.AssetSymbol,
             AssetName = snapshot.AssetName,
-            IncludeMacdInScoring = includeMacdInScoring,
+            IncludeMacdInScoring = true,
+            ActiveAlgorithmType = algorithmType.ToString(),
             Rows = history.Select(row => new SignalHistoryRowViewModel
             {
                 Date = row.Date.ToString("dd/MM/yyyy"),

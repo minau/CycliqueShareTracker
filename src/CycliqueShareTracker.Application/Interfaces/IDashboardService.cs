@@ -5,7 +5,7 @@ namespace CycliqueShareTracker.Application.Interfaces;
 public interface IDashboardService
 {
     IReadOnlyList<TrackedAssetOptions> GetTrackedAssets();
-    Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default);
-    Task<DashboardSnapshot> GetSnapshotAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default);
+    Task<DashboardSnapshot> GetSnapshotAsync(string symbol, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(string symbol, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default);
 }

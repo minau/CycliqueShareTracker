@@ -26,6 +26,13 @@ builder.Services
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddScoped<IIndicatorCalculator, IndicatorCalculator>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.RsiMeanReversionAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.EmaCrossoverAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.MacdReversalAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.TrendFollowingAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.PullbackInTrendAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.DrawdownReboundAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithmRegistry, SignalAlgorithmRegistry>();
 builder.Services.AddScoped<ISignalService, SignalService>();
 builder.Services.AddScoped<IExitSignalService, ExitSignalService>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
