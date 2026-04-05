@@ -266,7 +266,7 @@ public sealed class DashboardService : IDashboardService
 
         foreach (var current in computedByDate.Values.OrderBy(x => x.Date))
         {
-            var entrySignal = _signalService.BuildSignal(current, includeMacdInScoring);
+            var entrySignal = _signalService.BuildSignal(current, includeMacdInScoring, previous);
             var exitSignal = _exitSignalService.BuildExitSignal(current, previous, includeMacdInScoring);
             breakdown[current.Date] = (entrySignal, exitSignal);
             previous = current;

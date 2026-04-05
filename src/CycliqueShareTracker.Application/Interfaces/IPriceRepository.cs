@@ -7,5 +7,6 @@ public interface IPriceRepository
 {
     Task UpsertDailyPricesAsync(int assetId, IReadOnlyList<PriceBar> prices, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DailyPrice>> GetPricesAsync(int assetId, int maxRows, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DailyPrice>> GetPricesInRangeAsync(int assetId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken = default);
     Task<DailyPrice?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default);
 }

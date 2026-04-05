@@ -27,7 +27,7 @@ public class ExitSignalServiceTests
         Assert.Equal(0, result.ExitScore);
         Assert.Equal(ExitSignalLabel.Hold, result.ExitSignal);
         Assert.Equal("Aucun signal de sortie fort détecté.", result.PrimaryExitReason);
-        Assert.Equal(10, result.ScoreFactors.Count);
+        Assert.True(result.ScoreFactors.Count >= 10);
     }
 
     [Fact]

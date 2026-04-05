@@ -30,6 +30,8 @@ builder.Services.AddScoped<ISignalService, SignalService>();
 builder.Services.AddScoped<IExitSignalService, ExitSignalService>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBacktestEngine, BacktestEngine>();
+builder.Services.AddScoped<IBacktestService, BacktestService>();
 
 builder.Services.AddHostedService<DailyUpdateBackgroundService>();
 

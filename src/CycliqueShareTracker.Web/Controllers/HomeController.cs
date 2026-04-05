@@ -11,11 +11,13 @@ public class HomeController : Controller
 {
     private readonly IDashboardService _dashboardService;
     private readonly IDataSyncService _dataSyncService;
+    private readonly IBacktestService _backtestService;
 
-    public HomeController(IDashboardService dashboardService, IDataSyncService dataSyncService)
+    public HomeController(IDashboardService dashboardService, IDataSyncService dataSyncService, IBacktestService backtestService)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
+        _backtestService = backtestService;
     }
 
     [HttpGet]
@@ -122,6 +124,53 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Index), new { includeMacdInScoring });
     }
 
+
+
+    [HttpGet]
+    public async Task<IActionResult> Backtest(
+        [FromQuery] string symbol = "__WATCHLIST__",
+        [FromQuery] string? startDate = null,
+        [FromQuery] string? endDate = null,
+        [FromQuery] bool includeMacdInScoring = true,
+        CancellationToken cancellationToken = default)
+    {
+        var trackedAssets = _dashboardService.GetTrackedAssets();
+        var end = DateOnly.TryParse(endDate, out var parsedEnd) ? parsedEnd : DateOnly.FromDateTime(DateTime.UtcNow);
+        var start = DateOnly.TryParse(startDate, out var parsedStart) ? parsedStart : end.AddYears(-3);
+
+        var model = new BacktestPageViewModel
+        {
+            SelectedSymbol = string.IsNullOrWhiteSpace(symbol) ? "__WATCHLIST__" : symbol,
+            StartDate = start,
+            EndDate = end,
+            IncludeMacdInScoring = includeMacdInScoring,
+            SymbolOptions = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+            {
+                new("Watchlist complète", "__WATCHLIST__")
+            }.Concat(trackedAssets.Select(asset => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem($"{asset.Symbol} - {asset.Name}", asset.Symbol))).ToList()
+        };
+
+        try
+        {
+            var symbols = model.SelectedSymbol == "__WATCHLIST__"
+                ? trackedAssets.Select(x => x.Symbol).ToList()
+                : new List<string> { model.SelectedSymbol };
+
+            var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
+                model.StartDate,
+                model.EndDate,
+                symbols,
+                model.IncludeMacdInScoring);
+
+            model.Result = await _backtestService.RunAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            model.Error = ex.Message;
+        }
+
+        return View(model);
+    }
 
     [HttpGet]
     public IActionResult Documentation([FromQuery] bool includeMacdInScoring = true)

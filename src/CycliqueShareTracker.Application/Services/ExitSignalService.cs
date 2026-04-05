@@ -6,12 +6,25 @@ namespace CycliqueShareTracker.Application.Services;
 
 public sealed class ExitSignalService : IExitSignalService
 {
-    public ExitSignalResult BuildExitSignal(ComputedIndicator current, ComputedIndicator? previous, bool includeMacdInScoring = true)
+    public ExitSignalResult BuildExitSignal(
+        ComputedIndicator current,
+        ComputedIndicator? previous,
+        bool includeMacdInScoring = true,
+        StrategyConfig? strategyConfig = null)
     {
+        var config = strategyConfig ?? StrategyConfig.Default;
+        var includeMacd = includeMacdInScoring && config.EnableMacdConfirmation;
+
         decimal? distanceToSma50Percent = null;
         if (current.Sma50.HasValue && current.Sma50.Value != 0)
         {
             distanceToSma50Percent = ((current.Close / current.Sma50.Value) - 1m) * 100m;
+        }
+
+        decimal? sma50SlopePct = null;
+        if (previous?.Sma50.HasValue == true && current.Sma50.HasValue && previous.Sma50.Value != 0)
+        {
+            sma50SlopePct = ((current.Sma50.Value / previous.Sma50.Value) - 1m) * 100m;
         }
 
         var factors = new List<ScoreFactorDetail>
@@ -32,9 +45,9 @@ public sealed class ExitSignalService : IExitSignalService
                 previous is not null &&
                 current.PreviousClose.HasValue &&
                 current.Close < current.PreviousClose.Value &&
-                previous.Rsi14 is >= 70m &&
+                previous.Rsi14 >= config.MinRsiWeaknessForSell &&
                 current.Rsi14.HasValue &&
-                current.Rsi14.Value < previous.Rsi14.Value,
+                current.Rsi14.Value < previous.Rsi14,
                 "RSI en baisse après phase de surachat."),
             new(
                 "Dégradation du momentum (clôture sous la veille)",
@@ -50,10 +63,24 @@ public sealed class ExitSignalService : IExitSignalService
                 "Cassure sous SMA200",
                 30,
                 current.Sma200.HasValue && current.Close < current.Sma200.Value,
-                "Rupture de tendance de fond.")
+                "Rupture de tendance de fond."),
+            new(
+                $"Pente SMA50 plate/négative (<= {config.MaxFlatSlopeThreshold}%)",
+                0,
+                sma50SlopePct.HasValue && sma50SlopePct.Value <= config.MaxFlatSlopeThreshold,
+                "Tendance intermédiaire qui s'aplatit."),
+            new(
+                "Early sell : faiblesse précoce",
+                0,
+                config.EarlySellEnabled &&
+                current.Sma50.HasValue &&
+                current.Close < current.Sma50.Value &&
+                current.Rsi14.HasValue &&
+                current.Rsi14.Value < 50m,
+                "Dégradation rapide, sortie défensive anticipée.")
         };
 
-        if (includeMacdInScoring)
+        if (includeMacd)
         {
             decimal? currentMacdSpread = ComputeMacdSpread(current);
             decimal? previousMacdSpread = previous is null ? null : ComputeMacdSpread(previous);
@@ -89,7 +116,6 @@ public sealed class ExitSignalService : IExitSignalService
         }
 
         var score = factors.Where(x => x.Triggered).Sum(x => x.Points);
-
         score = Math.Clamp(score, 0, 100);
 
         var label = score switch

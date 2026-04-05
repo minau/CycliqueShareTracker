@@ -1,0 +1,112 @@
+@model CycliqueShareTracker.Web.Models.BacktestPageViewModel
+
+<div class="card">
+    <h2>Backtest MVP</h2>
+    <form method="get" asp-action="Backtest" class="watchlist-toolbar">
+        <label>
+            Action / univers<br />
+            <select name="symbol">
+                @foreach (var option in Model.SymbolOptions)
+                {
+                    if (option.Value == Model.SelectedSymbol)
+                    {
+                        <option value="@option.Value" selected>@option.Text</option>
+                    }
+                    else
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                }
+            </select>
+        </label>
+
+        <label>
+            Début<br />
+            <input type="date" name="startDate" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+        </label>
+
+        <label>
+            Fin<br />
+            <input type="date" name="endDate" value="@Model.EndDate.ToString("yyyy-MM-dd")" />
+        </label>
+
+        <label>
+            <input type="checkbox" name="includeMacdInScoring" value="true" @(Model.IncludeMacdInScoring ? "checked" : null) />
+            Inclure MACD dans le score
+        </label>
+
+        <button type="submit">Lancer le backtest</button>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <p><strong>Erreur:</strong> @Model.Error</p>
+    }
+</div>
+
+@if (Model.Result is not null)
+{
+    <div class="card">
+        <h3>Résumé agrégé</h3>
+        <div class="grid">
+            <div><strong>Trades</strong><br />@Model.Result.AggregateMetrics.TotalTrades</div>
+            <div><strong>Win rate</strong><br />@Model.Result.AggregateMetrics.WinRatePercent%</div>
+            <div><strong>Perf totale</strong><br />@Model.Result.AggregateMetrics.TotalPerformancePercent%</div>
+            <div><strong>Profit factor</strong><br />@Model.Result.AggregateMetrics.ProfitFactor</div>
+            <div><strong>Drawdown max</strong><br />@Model.Result.AggregateMetrics.MaxDrawdownPercent%</div>
+            <div><strong>Durée moyenne</strong><br />@Model.Result.AggregateMetrics.AverageTradeDurationDays jours</div>
+        </div>
+    </div>
+
+    @foreach (var asset in Model.Result.Assets)
+    {
+        <div class="card">
+            <h3>@asset.Symbol - @asset.AssetName</h3>
+            @if (!string.IsNullOrWhiteSpace(asset.Error))
+            {
+                <p>@asset.Error</p>
+            }
+            else
+            {
+                <p>
+                    Trades: <strong>@asset.Metrics.TotalTrades</strong> |
+                    Gagnants: <strong>@asset.Metrics.WinningTrades</strong> |
+                    Perdants: <strong>@asset.Metrics.LosingTrades</strong> |
+                    Win rate: <strong>@asset.Metrics.WinRatePercent%</strong> |
+                    Perf: <strong>@asset.Metrics.TotalPerformancePercent%</strong> |
+                    Drawdown max: <strong>@asset.Metrics.MaxDrawdownPercent%</strong>
+                </p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Entrée</th>
+                            <th>Prix entrée</th>
+                            <th>Sortie</th>
+                            <th>Prix sortie</th>
+                            <th>Perf %</th>
+                            <th>Durée</th>
+                            <th>Raison entrée</th>
+                            <th>Raison sortie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var trade in asset.Trades)
+                    {
+                        <tr>
+                            <td>@trade.EntryDate.ToString("yyyy-MM-dd")</td>
+                            <td>@trade.EntryPrice</td>
+                            <td>@trade.ExitDate.ToString("yyyy-MM-dd")</td>
+                            <td>@trade.ExitPrice</td>
+                            <td>@trade.PerformancePercent</td>
+                            <td>@trade.DurationDays</td>
+                            <td>@trade.EntryReason</td>
+                            <td>@trade.ExitReason</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+}
