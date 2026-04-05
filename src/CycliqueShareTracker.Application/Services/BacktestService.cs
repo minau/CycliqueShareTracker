@@ -59,11 +59,13 @@ public sealed class BacktestService : IBacktestService
             var market = tracked?.Market ?? string.Empty;
 
             var asset = await _assetRepository.GetOrCreateAsync(symbol, assetName, market, cancellationToken);
-            var prices = await _priceRepository.GetPricesInRangeAsync(asset.Id, request.StartDate, request.EndDate, cancellationToken);
+            var warmupStartDate = request.StartDate.AddDays(-260);
+            var prices = await _priceRepository.GetPricesInRangeAsync(asset.Id, warmupStartDate, request.EndDate, cancellationToken);
             var bars = prices.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList();
-            _logger.LogInformation("Loaded {BarCount} bars for {Symbol} in requested period.", bars.Count, symbol);
+            var barsInWindow = bars.Count(b => b.Date >= request.StartDate && b.Date <= request.EndDate);
+            _logger.LogInformation("Loaded {BarCount} bars for {Symbol} ({WindowBarCount} in simulation window, warmup start={WarmupStartDate}).", bars.Count, symbol, barsInWindow, warmupStartDate);
 
-            var assetResult = _backtestEngine.RunForAsset(symbol, assetName, bars, request.IncludeMacdInScoring, config);
+            var assetResult = _backtestEngine.RunForAsset(symbol, assetName, bars, request.StartDate, request.EndDate, request.IncludeMacdInScoring, config);
             _logger.LogInformation("Backtest result for {Symbol}: Trades={Trades}; Perf={Perf}; Error={Error}", symbol, assetResult.Metrics.TotalTrades, assetResult.Metrics.TotalPerformancePercent, assetResult.Error);
             results.Add(assetResult);
         }

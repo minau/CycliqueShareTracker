@@ -24,7 +24,14 @@ public sealed class BacktestEngine : IBacktestEngine
         _logger = logger;
     }
 
-    public BacktestAssetResult RunForAsset(string symbol, string assetName, IReadOnlyList<PriceBar> priceBars, bool includeMacdInScoring, StrategyConfig config)
+    public BacktestAssetResult RunForAsset(
+        string symbol,
+        string assetName,
+        IReadOnlyList<PriceBar> priceBars,
+        DateOnly simulationStartDate,
+        DateOnly simulationEndDate,
+        bool includeMacdInScoring,
+        StrategyConfig config)
     {
         if (priceBars.Count == 0)
         {
@@ -37,10 +44,21 @@ public sealed class BacktestEngine : IBacktestEngine
         var computed = _indicatorCalculator.Compute(orderedBars);
         var trades = new List<Trade>();
 
+        var hasBarsInWindow = orderedBars.Any(b => b.Date >= simulationStartDate && b.Date <= simulationEndDate);
+        if (!hasBarsInWindow)
+        {
+            _logger.LogWarning("No bars available in simulation window for {Symbol}. Start={StartDate}; End={EndDate}; AvailableMin={MinDate}; AvailableMax={MaxDate}",
+                symbol, simulationStartDate, simulationEndDate, orderedBars.Min(b => b.Date), orderedBars.Max(b => b.Date));
+            var emptyMetrics = BuildMetrics(Array.Empty<Trade>());
+            return new BacktestAssetResult(symbol, assetName, emptyMetrics, Array.Empty<Trade>(), "Aucune donnée OHLC disponible dans la fenêtre demandée.");
+        }
+
         ComputedIndicator? previousIndicator = null;
         OpenPosition? openPosition = null;
         var barsSinceLastBuy = int.MaxValue;
         var barsSinceLastSell = int.MaxValue;
+        var buyZoneCount = 0;
+        var sellZoneCount = 0;
 
         for (var i = 0; i < computed.Count; i++)
         {
@@ -49,6 +67,23 @@ public sealed class BacktestEngine : IBacktestEngine
 
             var entrySignal = _signalService.BuildSignal(currentIndicator, includeMacdInScoring, previousIndicator, config);
             var exitSignal = _exitSignalService.BuildExitSignal(currentIndicator, previousIndicator, includeMacdInScoring, config);
+            var inSimulationWindow = bar.Date >= simulationStartDate && bar.Date <= simulationEndDate;
+
+            if (inSimulationWindow && entrySignal.Label == SignalLabel.BuyZone)
+            {
+                buyZoneCount++;
+            }
+
+            if (inSimulationWindow && exitSignal.ExitSignal == ExitSignalLabel.SellZone)
+            {
+                sellZoneCount++;
+            }
+
+            if (!inSimulationWindow)
+            {
+                previousIndicator = currentIndicator;
+                continue;
+            }
 
             if (openPosition is null)
             {
@@ -88,14 +123,15 @@ public sealed class BacktestEngine : IBacktestEngine
 
         if (openPosition is not null)
         {
-            var lastBar = orderedBars[^1];
+            var lastBar = orderedBars.Last(x => x.Date >= simulationStartDate && x.Date <= simulationEndDate);
             var forcedTrade = BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide);
             _logger.LogDebug("FORCED CLOSE {Symbol} at {Date}. Perf={Performance}", symbol, lastBar.Date, forcedTrade.PerformancePercent);
             trades.Add(forcedTrade);
         }
 
         var metrics = BuildMetrics(trades);
-        _logger.LogInformation("Engine finished for {Symbol}. Bars={Bars}; Trades={Trades}; WinRate={WinRate}; Perf={Perf}", symbol, orderedBars.Count, metrics.TotalTrades, metrics.WinRatePercent, metrics.TotalPerformancePercent);
+        _logger.LogInformation("Engine finished for {Symbol}. Bars={Bars}; Window={StartDate}->{EndDate}; BuyZoneCount={BuyZoneCount}; SellZoneCount={SellZoneCount}; Trades={Trades}; WinRate={WinRate}; Perf={Perf}",
+            symbol, orderedBars.Count, simulationStartDate, simulationEndDate, buyZoneCount, sellZoneCount, metrics.TotalTrades, metrics.WinRatePercent, metrics.TotalPerformancePercent);
         return new BacktestAssetResult(symbol, assetName, metrics, trades);
     }
 

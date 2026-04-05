@@ -18,7 +18,7 @@ public class BacktestEngineTests
             NullLogger<BacktestEngine>.Instance);
 
         var prices = BuildBars(new decimal[] { 100m, 102m, 104m, 106m, 105m, 107m });
-        var result = engine.RunForAsset("TEST", "Test Asset", prices, includeMacdInScoring: false, StrategyConfig.Default with
+        var result = engine.RunForAsset("TEST", "Test Asset", prices, new DateOnly(2026, 01, 01), new DateOnly(2026, 01, 06), includeMacdInScoring: false, StrategyConfig.Default with
         {
             BuyScoreThreshold = 70,
             SellScoreThreshold = 60,
@@ -43,7 +43,7 @@ public class BacktestEngineTests
             NullLogger<BacktestEngine>.Instance);
 
         var prices = BuildBars(new decimal[] { 100m, 102m, 104m, 106m, 95m, 97m });
-        var result = engine.RunForAsset("TEST", "Test Asset", prices, includeMacdInScoring: false, StrategyConfig.Default with
+        var result = engine.RunForAsset("TEST", "Test Asset", prices, new DateOnly(2026, 01, 01), new DateOnly(2026, 01, 06), includeMacdInScoring: false, StrategyConfig.Default with
         {
             FeePercentPerSide = 0m,
             MinimumBarsBetweenSameSignal = 0
