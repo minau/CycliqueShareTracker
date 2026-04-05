@@ -6,8 +6,33 @@ namespace CycliqueShareTracker.Application.Services;
 
 public sealed class SignalService : ISignalService
 {
-    public SignalResult BuildSignal(ComputedIndicator indicator, bool includeMacdInScoring = true)
+    public SignalResult BuildSignal(
+        ComputedIndicator indicator,
+        bool includeMacdInScoring = true,
+        ComputedIndicator? previous = null,
+        StrategyConfig? strategyConfig = null)
     {
+        var config = strategyConfig ?? StrategyConfig.Default;
+        var includeMacd = includeMacdInScoring && config.EnableMacdConfirmation;
+
+        decimal? distanceAboveSma50Pct = null;
+        if (indicator.Sma50.HasValue && indicator.Sma50.Value != 0)
+        {
+            distanceAboveSma50Pct = ((indicator.Close / indicator.Sma50.Value) - 1m) * 100m;
+        }
+
+        decimal? sma50SlopePct = null;
+        if (previous?.Sma50.HasValue == true && indicator.Sma50.HasValue && previous.Sma50.Value != 0)
+        {
+            sma50SlopePct = ((indicator.Sma50.Value / previous.Sma50.Value) - 1m) * 100m;
+        }
+
+        decimal? smaGapPct = null;
+        if (indicator.Sma50.HasValue && indicator.Sma200.HasValue && indicator.Sma200.Value != 0)
+        {
+            smaGapPct = ((indicator.Sma50.Value / indicator.Sma200.Value) - 1m) * 100m;
+        }
+
         var factors = new List<ScoreFactorDetail>
         {
             new(
@@ -21,9 +46,9 @@ public sealed class SignalService : ISignalService
                 indicator.Sma50.HasValue && indicator.Sma200.HasValue && indicator.Sma50.Value > indicator.Sma200.Value,
                 "Structure haussière court terme > long terme."),
             new(
-                "RSI14 entre 35 et 55",
+                $"RSI14 entre {config.MinRsiForBuy} et {config.MaxRsiForBuy}",
                 20,
-                indicator.Rsi14.HasValue && indicator.Rsi14.Value >= 35m && indicator.Rsi14.Value <= 55m,
+                indicator.Rsi14.HasValue && indicator.Rsi14.Value >= config.MinRsiForBuy && indicator.Rsi14.Value <= config.MaxRsiForBuy,
                 "Momentum équilibré, sans excès."),
             new(
                 "Drawdown 52 semaines entre -15% et -5%",
@@ -36,10 +61,25 @@ public sealed class SignalService : ISignalService
                 "Prix en hausse par rapport à la veille",
                 10,
                 indicator.PreviousClose.HasValue && indicator.Close > indicator.PreviousClose.Value,
-                "Validation de momentum court terme.")
+                "Validation de momentum court terme."),
+            new(
+                $"Prix proche de la SMA50 (<= {config.MaxDistanceAboveSma50ForBuyPct}%)",
+                0,
+                distanceAboveSma50Pct.HasValue && distanceAboveSma50Pct.Value <= config.MaxDistanceAboveSma50ForBuyPct,
+                "Évite les achats trop éloignés de la moyenne intermédiaire."),
+            new(
+                $"Pente SMA50 >= {config.MinSma50SlopeForBuy}%",
+                0,
+                sma50SlopePct.HasValue && sma50SlopePct.Value >= config.MinSma50SlopeForBuy,
+                "Confirme une orientation haussière de la tendance intermédiaire."),
+            new(
+                $"Écart SMA50/SMA200 >= {config.MinGapBetweenSma50AndSma200Pct}%",
+                0,
+                smaGapPct.HasValue && smaGapPct.Value >= config.MinGapBetweenSma50AndSma200Pct,
+                "Réduit les signaux en zone de range plate.")
         };
 
-        if (includeMacdInScoring)
+        if (includeMacd)
         {
             factors.Add(new(
                 "MACD haussier : la ligne MACD est au-dessus de la ligne signal",

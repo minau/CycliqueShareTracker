@@ -61,6 +61,15 @@ public sealed class PriceRepository : IPriceRepository
             .ToListAsync(cancellationToken);
     }
 
+
+    public async Task<IReadOnlyList<DailyPrice>> GetPricesInRangeAsync(int assetId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.DailyPrices
+            .Where(x => x.AssetId == assetId && x.Date >= startDate && x.Date <= endDate)
+            .OrderBy(x => x.Date)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<DailyPrice?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default)
     {
         return _dbContext.DailyPrices
