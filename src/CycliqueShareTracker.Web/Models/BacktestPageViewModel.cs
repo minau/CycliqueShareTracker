@@ -11,5 +11,7 @@ public sealed class BacktestPageViewModel
     public bool IncludeMacdInScoring { get; set; } = true;
     public IReadOnlyList<SelectListItem> SymbolOptions { get; set; } = Array.Empty<SelectListItem>();
     public BacktestResult? Result { get; set; }
+    public bool HasExecuted { get; set; }
+    public DateTime? ExecutedAtUtc { get; set; }
     public string? Error { get; set; }
 }

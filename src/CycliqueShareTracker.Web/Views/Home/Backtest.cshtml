@@ -3,6 +3,7 @@
 <div class="card">
     <h2>Backtest MVP</h2>
     <form method="get" asp-action="Backtest" class="watchlist-toolbar">
+        <input type="hidden" name="runBacktest" value="true" />
         <label>
             Action / univers<br />
             <select name="symbol">
@@ -42,9 +43,14 @@
     {
         <p><strong>Erreur:</strong> @Model.Error</p>
     }
+
+    @if (Model.HasExecuted && string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <p><strong>Backtest exécuté.</strong> @Model.ExecutedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+    }
 </div>
 
-@if (Model.Result is not null)
+@if (Model.HasExecuted && Model.Result is not null)
 {
     <div class="card">
         <h3>Résumé agrégé</h3>
@@ -109,4 +115,10 @@
             }
         </div>
     }
+}
+else
+{
+    <div class="card">
+        <p>Choisissez un symbole (ou la watchlist), une période, puis cliquez sur <strong>Lancer le backtest</strong>.</p>
+    </div>
 }

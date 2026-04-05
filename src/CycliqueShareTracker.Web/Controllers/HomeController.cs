@@ -132,6 +132,7 @@ public class HomeController : Controller
         [FromQuery] string? startDate = null,
         [FromQuery] string? endDate = null,
         [FromQuery] bool includeMacdInScoring = true,
+        [FromQuery] bool runBacktest = false,
         CancellationToken cancellationToken = default)
     {
         var trackedAssets = _dashboardService.GetTrackedAssets();
@@ -150,23 +151,29 @@ public class HomeController : Controller
             }.Concat(trackedAssets.Select(asset => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem($"{asset.Symbol} - {asset.Name}", asset.Symbol))).ToList()
         };
 
-        try
+        if (runBacktest)
         {
-            var symbols = model.SelectedSymbol == "__WATCHLIST__"
-                ? trackedAssets.Select(x => x.Symbol).ToList()
-                : new List<string> { model.SelectedSymbol };
+            try
+            {
+                var symbols = model.SelectedSymbol == "__WATCHLIST__"
+                    ? trackedAssets.Select(x => x.Symbol).ToList()
+                    : new List<string> { model.SelectedSymbol };
 
-            var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
-                model.StartDate,
-                model.EndDate,
-                symbols,
-                model.IncludeMacdInScoring);
+                var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
+                    model.StartDate,
+                    model.EndDate,
+                    symbols,
+                    model.IncludeMacdInScoring);
 
-            model.Result = await _backtestService.RunAsync(request, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            model.Error = ex.Message;
+                model.Result = await _backtestService.RunAsync(request, cancellationToken);
+                model.HasExecuted = true;
+                model.ExecutedAtUtc = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                model.Error = ex.Message;
+                model.HasExecuted = true;
+            }
         }
 
         return View(model);
