@@ -55,8 +55,8 @@ public sealed class BacktestEngine : IBacktestEngine
 
         ComputedIndicator? previousIndicator = null;
         OpenPosition? openPosition = null;
-        var barsSinceLastBuy = int.MaxValue;
-        var barsSinceLastSell = int.MaxValue;
+        var barsSinceLastBuy = config.MinimumBarsBetweenSameSignal;
+        var barsSinceLastSell = config.MinimumBarsBetweenSameSignal;
         var buyZoneCount = 0;
         var sellZoneCount = 0;
 

@@ -33,6 +33,27 @@ public class BacktestEngineTests
         Assert.Equal("Sell déterministe", result.Trades[0].ExitReason);
     }
 
+
+    [Fact]
+    public void RunForAsset_ShouldAllowFirstTrade_WhenMinimumBarsBetweenSignalsIsConfigured()
+    {
+        var engine = new BacktestEngine(
+            new IndicatorCalculator(),
+            new FixedSignalService(),
+            new FixedExitSignalService(),
+            NullLogger<BacktestEngine>.Instance);
+
+        var prices = BuildBars(new decimal[] { 100m, 102m, 104m, 106m, 105m, 107m });
+        var result = engine.RunForAsset("TEST", "Test Asset", prices, new DateOnly(2026, 01, 01), new DateOnly(2026, 01, 06), includeMacdInScoring: false, StrategyConfig.Default with
+        {
+            MinimumBarsBetweenSameSignal = 3,
+            FeePercentPerSide = 0m
+        });
+
+        Assert.NotEmpty(result.Trades);
+        Assert.Equal(new DateOnly(2026, 01, 02), result.Trades[0].EntryDate);
+    }
+
     [Fact]
     public void RunForAsset_ShouldComputeExpectedMetrics()
     {
