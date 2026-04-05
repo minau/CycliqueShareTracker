@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Enums;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CycliqueShareTracker.Tests;
 
@@ -13,7 +14,8 @@ public class BacktestEngineTests
         var engine = new BacktestEngine(
             new IndicatorCalculator(),
             new FixedSignalService(),
-            new FixedExitSignalService());
+            new FixedExitSignalService(),
+            NullLogger<BacktestEngine>.Instance);
 
         var prices = BuildBars(new decimal[] { 100m, 102m, 104m, 106m, 105m, 107m });
         var result = engine.RunForAsset("TEST", "Test Asset", prices, includeMacdInScoring: false, StrategyConfig.Default with
@@ -37,7 +39,8 @@ public class BacktestEngineTests
         var engine = new BacktestEngine(
             new IndicatorCalculator(),
             new FixedSignalService(),
-            new FixedExitSignalService());
+            new FixedExitSignalService(),
+            NullLogger<BacktestEngine>.Instance);
 
         var prices = BuildBars(new decimal[] { 100m, 102m, 104m, 106m, 95m, 97m });
         var result = engine.RunForAsset("TEST", "Test Asset", prices, includeMacdInScoring: false, StrategyConfig.Default with

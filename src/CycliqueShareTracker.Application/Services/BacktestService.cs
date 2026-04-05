@@ -1,5 +1,6 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Application.Services;
@@ -10,16 +11,19 @@ public sealed class BacktestService : IBacktestService
     private readonly IPriceRepository _priceRepository;
     private readonly IBacktestEngine _backtestEngine;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
+    private readonly ILogger<BacktestService> _logger;
 
     public BacktestService(
         IAssetRepository assetRepository,
         IPriceRepository priceRepository,
         IBacktestEngine backtestEngine,
-        IOptions<WatchlistOptions> watchlistOptions)
+        IOptions<WatchlistOptions> watchlistOptions,
+        ILogger<BacktestService> logger)
     {
         _assetRepository = assetRepository;
         _priceRepository = priceRepository;
         _backtestEngine = backtestEngine;
+        _logger = logger;
         _watchlist = watchlistOptions.Value.Assets is { Count: > 0 }
             ? watchlistOptions.Value.Assets
             : WatchlistOptions.DefaultAssets.ToList();
@@ -46,6 +50,8 @@ public sealed class BacktestService : IBacktestService
         var config = request.StrategyConfig ?? StrategyConfig.Default;
         var results = new List<BacktestAssetResult>();
 
+        _logger.LogInformation("Starting backtest. SymbolCount={SymbolCount}; Start={StartDate}; End={EndDate}", normalizedSymbols.Count, request.StartDate, request.EndDate);
+
         foreach (var symbol in normalizedSymbols)
         {
             var tracked = _watchlist.FirstOrDefault(w => string.Equals(w.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
@@ -55,11 +61,15 @@ public sealed class BacktestService : IBacktestService
             var asset = await _assetRepository.GetOrCreateAsync(symbol, assetName, market, cancellationToken);
             var prices = await _priceRepository.GetPricesInRangeAsync(asset.Id, request.StartDate, request.EndDate, cancellationToken);
             var bars = prices.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList();
+            _logger.LogInformation("Loaded {BarCount} bars for {Symbol} in requested period.", bars.Count, symbol);
 
-            results.Add(_backtestEngine.RunForAsset(symbol, assetName, bars, request.IncludeMacdInScoring, config));
+            var assetResult = _backtestEngine.RunForAsset(symbol, assetName, bars, request.IncludeMacdInScoring, config);
+            _logger.LogInformation("Backtest result for {Symbol}: Trades={Trades}; Perf={Perf}; Error={Error}", symbol, assetResult.Metrics.TotalTrades, assetResult.Metrics.TotalPerformancePercent, assetResult.Error);
+            results.Add(assetResult);
         }
 
         var aggregate = BuildAggregateMetrics(results);
+        _logger.LogInformation("Backtest aggregate completed. TotalTrades={Trades}; WinRate={WinRate}; Perf={Perf}", aggregate.TotalTrades, aggregate.WinRatePercent, aggregate.TotalPerformancePercent);
         return new BacktestResult(request, aggregate, results);
     }
 

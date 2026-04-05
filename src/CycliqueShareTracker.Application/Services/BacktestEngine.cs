@@ -1,6 +1,7 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace CycliqueShareTracker.Application.Services;
 
@@ -9,21 +10,25 @@ public sealed class BacktestEngine : IBacktestEngine
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly ISignalService _signalService;
     private readonly IExitSignalService _exitSignalService;
+    private readonly ILogger<BacktestEngine> _logger;
 
     public BacktestEngine(
         IIndicatorCalculator indicatorCalculator,
         ISignalService signalService,
-        IExitSignalService exitSignalService)
+        IExitSignalService exitSignalService,
+        ILogger<BacktestEngine> logger)
     {
         _indicatorCalculator = indicatorCalculator;
         _signalService = signalService;
         _exitSignalService = exitSignalService;
+        _logger = logger;
     }
 
     public BacktestAssetResult RunForAsset(string symbol, string assetName, IReadOnlyList<PriceBar> priceBars, bool includeMacdInScoring, StrategyConfig config)
     {
         if (priceBars.Count == 0)
         {
+            _logger.LogWarning("No bars found for symbol {Symbol} in requested range.", symbol);
             var emptyMetrics = BuildMetrics(Array.Empty<Trade>());
             return new BacktestAssetResult(symbol, assetName, emptyMetrics, Array.Empty<Trade>(), "Aucune donnée OHLC disponible sur la période demandée.");
         }
@@ -53,6 +58,7 @@ public sealed class BacktestEngine : IBacktestEngine
                     entrySignal.Score >= config.BuyScoreThreshold &&
                     barsSinceLastBuy >= config.MinimumBarsBetweenSameSignal)
                 {
+                    _logger.LogDebug("OPEN {Symbol} at {Date} close={Price}. Reason={Reason}", symbol, bar.Date, bar.Close, entrySignal.PrimaryReason);
                     openPosition = new OpenPosition(bar.Date, bar.Close, entrySignal.PrimaryReason);
                     barsSinceLastBuy = 0;
                 }
@@ -69,7 +75,9 @@ public sealed class BacktestEngine : IBacktestEngine
 
                 if (shouldSell && barsSinceLastSell >= config.MinimumBarsBetweenSameSignal)
                 {
-                    trades.Add(BuildTrade(symbol, openPosition, bar, exitSignal.PrimaryExitReason, config.FeePercentPerSide));
+                    var closedTrade = BuildTrade(symbol, openPosition, bar, exitSignal.PrimaryExitReason, config.FeePercentPerSide);
+                    _logger.LogDebug("CLOSE {Symbol} at {Date} close={Price}. Perf={Performance}. Reason={Reason}", symbol, bar.Date, bar.Close, closedTrade.PerformancePercent, exitSignal.PrimaryExitReason);
+                    trades.Add(closedTrade);
                     openPosition = null;
                     barsSinceLastSell = 0;
                 }
@@ -81,10 +89,13 @@ public sealed class BacktestEngine : IBacktestEngine
         if (openPosition is not null)
         {
             var lastBar = orderedBars[^1];
-            trades.Add(BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide));
+            var forcedTrade = BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide);
+            _logger.LogDebug("FORCED CLOSE {Symbol} at {Date}. Perf={Performance}", symbol, lastBar.Date, forcedTrade.PerformancePercent);
+            trades.Add(forcedTrade);
         }
 
         var metrics = BuildMetrics(trades);
+        _logger.LogInformation("Engine finished for {Symbol}. Bars={Bars}; Trades={Trades}; WinRate={WinRate}; Perf={Perf}", symbol, orderedBars.Count, metrics.TotalTrades, metrics.WinRatePercent, metrics.TotalPerformancePercent);
         return new BacktestAssetResult(symbol, assetName, metrics, trades);
     }
 
