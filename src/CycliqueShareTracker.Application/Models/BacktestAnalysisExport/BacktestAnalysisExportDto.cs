@@ -22,12 +22,20 @@ public sealed record BacktestAnalysisAlgorithmDto(
 
 public sealed record BacktestAnalysisAlgorithmParametersDto(
     decimal FeePercentPerSide,
-    decimal BuyScoreThreshold,
-    decimal SellScoreThreshold,
+    int BuyScoreThreshold,
+    int SellScoreThreshold,
+    decimal MinRsiForBuy,
+    decimal MaxRsiForBuy,
+    decimal MinRsiWeaknessForSell,
+    bool EnableMacdConfirmation,
     int MinimumBarsBetweenSameSignal,
-    int MaxHoldBars,
-    decimal StopLossPercent,
-    decimal TakeProfitPercent);
+    decimal MaxDistanceAboveSma50ForBuyPct,
+    decimal MinSma50SlopeForBuy,
+    decimal MaxFlatSlopeThreshold,
+    decimal MinGapBetweenSma50AndSma200Pct,
+    bool EarlySellEnabled,
+    int EarlySellWeaknessScoreThreshold);
+
 
 public sealed record BacktestAnalysisAssetDto(
     string Symbol,
