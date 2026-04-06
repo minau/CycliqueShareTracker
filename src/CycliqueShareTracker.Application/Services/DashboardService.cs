@@ -1,5 +1,6 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
+using CycliqueShareTracker.Domain.Enums;
 using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Application.Services;
@@ -10,9 +11,7 @@ public sealed class DashboardService : IDashboardService
     private readonly IAssetRepository _assetRepository;
     private readonly IPriceRepository _priceRepository;
     private readonly IIndicatorRepository _indicatorRepository;
-    private readonly ISignalRepository _signalRepository;
-    private readonly ISignalService _signalService;
-    private readonly IExitSignalService _exitSignalService;
+    private readonly ISignalAlgorithmRegistry _algorithmRegistry;
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly DashboardOptions _dashboardOptions;
@@ -25,26 +24,22 @@ public sealed class DashboardService : IDashboardService
         ISignalService signalService,
         IExitSignalService exitSignalService,
         IIndicatorCalculator indicatorCalculator,
+        ISignalAlgorithmRegistry algorithmRegistry,
         IOptions<WatchlistOptions> watchlistOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _assetRepository = assetRepository;
         _priceRepository = priceRepository;
         _indicatorRepository = indicatorRepository;
-        _signalRepository = signalRepository;
-        _signalService = signalService;
-        _exitSignalService = exitSignalService;
         _indicatorCalculator = indicatorCalculator;
+        _algorithmRegistry = algorithmRegistry;
         _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
 
-    public IReadOnlyList<TrackedAssetOptions> GetTrackedAssets()
-    {
-        return _watchlist;
-    }
+    public IReadOnlyList<TrackedAssetOptions> GetTrackedAssets() => _watchlist;
 
-    public async Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AssetSnapshotResult>> GetWatchlistSnapshotsAsync(AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
         var results = new List<AssetSnapshotResult>(_watchlist.Count);
 
@@ -52,7 +47,7 @@ public sealed class DashboardService : IDashboardService
         {
             try
             {
-                var snapshot = await GetSnapshotAsync(trackedAsset.Symbol, includeMacdInScoring, cancellationToken);
+                var snapshot = await GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
                 results.Add(new AssetSnapshotResult(trackedAsset, snapshot, null));
             }
             catch (Exception ex)
@@ -64,100 +59,67 @@ public sealed class DashboardService : IDashboardService
         return results;
     }
 
-    public async Task<DashboardSnapshot> GetSnapshotAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<DashboardSnapshot> GetSnapshotAsync(string symbol, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
         var trackedAsset = ResolveTrackedAsset(symbol);
         var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         var latestPrice = await _priceRepository.GetLatestAsync(asset.Id, cancellationToken);
         var latestIndicator = await _indicatorRepository.GetLatestAsync(asset.Id, cancellationToken);
-        var latestSignal = await _signalRepository.GetLatestAsync(asset.Id, cancellationToken);
         var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
         var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
         var recentIndicators = await _indicatorRepository.GetIndicatorsAsync(asset.Id, historyDays, cancellationToken);
-        var recentSignals = await _signalRepository.GetSignalsAsync(asset.Id, historyDays, cancellationToken);
-        var orderedIndicatorsDesc = recentIndicators.OrderByDescending(x => x.Date).ToList();
-        var computedFromPrices = _indicatorCalculator.Compute(
-            recentPrices
-                .Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume))
-                .OrderBy(p => p.Date)
-                .ToList());
 
-        var latestMacdLine = orderedIndicatorsDesc
-            .Select(x => x.MacdLine)
-            .FirstOrDefault(x => x.HasValue);
-        var latestMacdSignalLine = orderedIndicatorsDesc
-            .Select(x => x.MacdSignalLine)
-            .FirstOrDefault(x => x.HasValue);
-        var latestMacdHistogram = orderedIndicatorsDesc
-            .Select(x => x.MacdHistogram)
-            .FirstOrDefault(x => x.HasValue);
-        var latestComputedWithMacd = computedFromPrices
-            .OrderByDescending(x => x.Date)
-            .FirstOrDefault(x => x.MacdLine.HasValue || x.MacdSignalLine.HasValue || x.MacdHistogram.HasValue);
-
-        latestMacdLine ??= latestComputedWithMacd?.MacdLine;
-        latestMacdSignalLine ??= latestComputedWithMacd?.MacdSignalLine;
-        latestMacdHistogram ??= latestComputedWithMacd?.MacdHistogram;
-
-        var ordered = recentPrices.OrderByDescending(x => x.Date).ToList();
-        var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
-        var signalByDate = recentSignals.ToDictionary(x => x.Date);
+        var ordered = recentPrices.OrderBy(x => x.Date).ToList();
         var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
+        var algorithm = _algorithmRegistry.Get(algorithmType);
+        var computedList = computedByDate.Values.OrderBy(x => x.Date).ToList();
+        var algorithmResult = algorithm.ComputeSignals(ordered.Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume)).ToList(), new AlgorithmContext(computedList));
+        var pointsByDate = algorithmResult.Points.ToDictionary(p => p.Date);
+
         decimal? dayChange = null;
-        if (ordered.Count >= 2 && ordered[1].Close != 0)
+        var orderedDesc = recentPrices.OrderByDescending(x => x.Date).ToList();
+        if (orderedDesc.Count >= 2 && orderedDesc[1].Close != 0)
         {
-            dayChange = ((ordered[0].Close / ordered[1].Close) - 1m) * 100m;
+            dayChange = ((orderedDesc[0].Close / orderedDesc[1].Close) - 1m) * 100m;
         }
 
-        var chartPoints = ordered
-            .OrderBy(x => x.Date)
-            .Select(price =>
-            {
-                indicatorByDate.TryGetValue(price.Date, out var indicator);
-                signalByDate.TryGetValue(price.Date, out var signal);
-                var breakdown = breakdownByDate[price.Date];
-                return new DashboardChartPoint(
-                    price.Date,
-                    price.Open,
-                    price.High,
-                    price.Low,
-                    price.Close,
-                    indicator?.Sma50,
-                    indicator?.Sma200,
-                    indicator?.Rsi14,
-                    indicator?.MacdLine,
-                    indicator?.MacdSignalLine,
-                    indicator?.MacdHistogram,
-                    includeMacdInScoring ? signal?.Score ?? breakdown.Entry.Score : breakdown.Entry.Score,
-                    breakdown.Entry.PrimaryReason,
-                    breakdown.Entry.ScoreFactors,
-                    includeMacdInScoring ? signal?.SignalLabel ?? breakdown.Entry.Label : breakdown.Entry.Label,
-                    includeMacdInScoring ? signal?.ExitScore ?? breakdown.Exit.ExitScore : breakdown.Exit.ExitScore,
-                    breakdown.Exit.PrimaryExitReason,
-                    breakdown.Exit.ScoreFactors,
-                    includeMacdInScoring ? signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal : breakdown.Exit.ExitSignal);
-            })
-            .ToList();
-
-        IReadOnlyList<ScoreFactorDetail> entryFactors = Array.Empty<ScoreFactorDetail>();
-        IReadOnlyList<ScoreFactorDetail> exitFactors = Array.Empty<ScoreFactorDetail>();
-        string? entryPrimaryReason = null;
-        string? exitPrimaryReason = latestSignal?.ExitPrimaryReason;
-        int? latestEntryScore = includeMacdInScoring ? latestSignal?.Score : null;
-        Domain.Enums.SignalLabel? latestEntryLabel = includeMacdInScoring ? latestSignal?.SignalLabel : null;
-        int? latestExitScore = includeMacdInScoring ? latestSignal?.ExitScore : null;
-        Domain.Enums.ExitSignalLabel? latestExitLabel = includeMacdInScoring ? latestSignal?.ExitSignalLabel : null;
-        if (latestPrice is not null && breakdownByDate.TryGetValue(latestPrice.Date, out var latestBreakdown))
+        var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
+        var chartPoints = ordered.Select(price =>
         {
-            entryFactors = latestBreakdown.Entry.ScoreFactors;
-            exitFactors = latestBreakdown.Exit.ScoreFactors;
-            entryPrimaryReason = latestBreakdown.Entry.PrimaryReason;
-            exitPrimaryReason = latestBreakdown.Exit.PrimaryExitReason;
-            latestEntryScore ??= latestBreakdown.Entry.Score;
-            latestEntryLabel ??= latestBreakdown.Entry.Label;
-            latestExitScore ??= latestBreakdown.Exit.ExitScore;
-            latestExitLabel ??= latestBreakdown.Exit.ExitSignal;
+            indicatorByDate.TryGetValue(price.Date, out var indicator);
+            pointsByDate.TryGetValue(price.Date, out var point);
+            point ??= new AlgorithmSignalPoint(price.Date, false, false, false, false, 0, 0, null, "N/A", "N/A", Array.Empty<ScoreFactorDetail>(), Array.Empty<ScoreFactorDetail>());
+
+            return new DashboardChartPoint(
+                price.Date,
+                price.Open,
+                price.High,
+                price.Low,
+                price.Close,
+                indicator?.Sma50,
+                indicator?.Sma200,
+                indicator?.Rsi14,
+                indicator?.MacdLine,
+                indicator?.MacdSignalLine,
+                indicator?.MacdHistogram,
+                point.BuyScore,
+                point.BuyReason,
+                point.BuyDetails,
+                point.IsBuyZone ? SignalLabel.BuyZone : SignalLabel.Watch,
+                point.SellScore,
+                point.SellReason,
+                point.SellDetails,
+                point.IsSellZone ? ExitSignalLabel.SellZone : ExitSignalLabel.Hold,
+                point.IsBuyZone,
+                point.IsSellZone,
+                point.BuySignal,
+                point.SellSignal);
+        }).ToList();
+
+        AlgorithmSignalPoint? latestSignalPoint = null;
+        if (latestPrice is not null)
+        {
+            pointsByDate.TryGetValue(latestPrice.Date, out latestSignalPoint);
         }
 
         return new DashboardSnapshot(
@@ -172,59 +134,44 @@ public sealed class DashboardService : IDashboardService
             latestIndicator?.Ema26,
             latestIndicator?.Rsi14,
             latestIndicator?.Drawdown52WeeksPercent,
-            latestIndicator?.MacdLine ?? latestMacdLine,
-            latestIndicator?.MacdSignalLine ?? latestMacdSignalLine,
-            latestIndicator?.MacdHistogram ?? latestMacdHistogram,
-            latestEntryScore,
-            latestEntryLabel,
-            entryPrimaryReason,
-            entryFactors,
-            latestExitScore,
-            latestExitLabel,
-            exitPrimaryReason,
-            exitFactors,
+            latestIndicator?.MacdLine,
+            latestIndicator?.MacdSignalLine,
+            latestIndicator?.MacdHistogram,
+            latestSignalPoint?.BuyScore,
+            latestSignalPoint?.IsBuyZone == true ? SignalLabel.BuyZone : SignalLabel.Watch,
+            latestSignalPoint?.BuyReason,
+            latestSignalPoint?.BuyDetails ?? Array.Empty<ScoreFactorDetail>(),
+            latestSignalPoint?.SellScore,
+            latestSignalPoint?.IsSellZone == true ? ExitSignalLabel.SellZone : ExitSignalLabel.Hold,
+            latestSignalPoint?.SellReason,
+            latestSignalPoint?.SellDetails ?? Array.Empty<ScoreFactorDetail>(),
             chartPoints,
-            ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList());
+            ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList(),
+            algorithmType,
+            algorithm.DisplayName);
     }
 
-    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(string symbol, bool includeMacdInScoring = true, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SignalHistoryRow>> GetSignalHistoryAsync(string symbol, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
     {
-        var trackedAsset = ResolveTrackedAsset(symbol);
-        var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
-        var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
+        var snapshot = await GetSnapshotAsync(symbol, algorithmType, cancellationToken);
 
-        var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
-        var recentIndicators = await _indicatorRepository.GetIndicatorsAsync(asset.Id, historyDays, cancellationToken);
-        var recentSignals = await _signalRepository.GetSignalsAsync(asset.Id, historyDays, cancellationToken);
-
-        var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
-        var signalByDate = recentSignals.ToDictionary(x => x.Date);
-        var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
-        var breakdownByDate = BuildSignalBreakdownByDate(computedByDate, includeMacdInScoring);
-
-        return recentPrices
+        return snapshot.ChartPoints
             .OrderByDescending(x => x.Date)
-            .Select(price =>
-            {
-                indicatorByDate.TryGetValue(price.Date, out var indicator);
-                signalByDate.TryGetValue(price.Date, out var signal);
-                var breakdown = breakdownByDate[price.Date];
-                return new SignalHistoryRow(
-                    price.Date,
-                    price.Close,
-                    indicator?.Sma50,
-                    indicator?.Sma200,
-                    indicator?.Rsi14,
-                    indicator?.Drawdown52WeeksPercent,
-                    includeMacdInScoring ? signal?.Score ?? breakdown.Entry.Score : breakdown.Entry.Score,
-                    includeMacdInScoring ? signal?.SignalLabel ?? breakdown.Entry.Label : breakdown.Entry.Label,
-                    breakdown.Entry.PrimaryReason,
-                    breakdown.Entry.ScoreFactors,
-                    includeMacdInScoring ? signal?.ExitScore ?? breakdown.Exit.ExitScore : breakdown.Exit.ExitScore,
-                    includeMacdInScoring ? signal?.ExitSignalLabel ?? breakdown.Exit.ExitSignal : breakdown.Exit.ExitSignal,
-                    breakdown.Exit.PrimaryExitReason,
-                    breakdown.Exit.ScoreFactors);
-            })
+            .Select(x => new SignalHistoryRow(
+                x.Date,
+                x.Close,
+                x.Sma50,
+                x.Sma200,
+                x.Rsi14,
+                null,
+                x.EntryScore,
+                x.SignalLabel,
+                x.EntryPrimaryReason,
+                x.EntryScoreFactors,
+                x.ExitScore,
+                x.ExitSignalLabel,
+                x.ExitPrimaryReason,
+                x.ExitScoreFactors))
             .ToList();
     }
 
@@ -255,24 +202,6 @@ public sealed class DashboardService : IDashboardService
             .GroupBy(asset => asset.Symbol.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
-    }
-
-    private Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)> BuildSignalBreakdownByDate(
-        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate,
-        bool includeMacdInScoring)
-    {
-        var breakdown = new Dictionary<DateOnly, (SignalResult Entry, ExitSignalResult Exit)>(computedByDate.Count);
-        ComputedIndicator? previous = null;
-
-        foreach (var current in computedByDate.Values.OrderBy(x => x.Date))
-        {
-            var entrySignal = _signalService.BuildSignal(current, includeMacdInScoring, previous);
-            var exitSignal = _exitSignalService.BuildExitSignal(current, previous, includeMacdInScoring);
-            breakdown[current.Date] = (entrySignal, exitSignal);
-            previous = current;
-        }
-
-        return breakdown;
     }
 
     private static Dictionary<DateOnly, ComputedIndicator> BuildComputedIndicatorsByDate(

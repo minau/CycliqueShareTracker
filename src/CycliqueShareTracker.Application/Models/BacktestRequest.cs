@@ -5,4 +5,5 @@ public sealed record BacktestRequest(
     DateOnly EndDate,
     IReadOnlyList<string> Symbols,
     bool IncludeMacdInScoring,
+    AlgorithmType AlgorithmType = AlgorithmType.RsiMeanReversion,
     StrategyConfig? StrategyConfig = null);

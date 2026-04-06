@@ -65,7 +65,7 @@ public sealed class BacktestService : IBacktestService
             var barsInWindow = bars.Count(b => b.Date >= request.StartDate && b.Date <= request.EndDate);
             _logger.LogInformation("Loaded {BarCount} bars for {Symbol} ({WindowBarCount} in simulation window, warmup start={WarmupStartDate}).", bars.Count, symbol, barsInWindow, warmupStartDate);
 
-            var assetResult = _backtestEngine.RunForAsset(symbol, assetName, bars, request.StartDate, request.EndDate, request.IncludeMacdInScoring, config);
+            var assetResult = _backtestEngine.RunForAsset(symbol, assetName, bars, request.StartDate, request.EndDate, request.AlgorithmType, config);
             _logger.LogInformation("Backtest result for {Symbol}: Trades={Trades}; Perf={Perf}; Error={Error}", symbol, assetResult.Metrics.TotalTrades, assetResult.Metrics.TotalPerformancePercent, assetResult.Error);
             results.Add(assetResult);
         }

@@ -1,6 +1,5 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
-using CycliqueShareTracker.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace CycliqueShareTracker.Application.Services;
@@ -8,19 +7,16 @@ namespace CycliqueShareTracker.Application.Services;
 public sealed class BacktestEngine : IBacktestEngine
 {
     private readonly IIndicatorCalculator _indicatorCalculator;
-    private readonly ISignalService _signalService;
-    private readonly IExitSignalService _exitSignalService;
+    private readonly ISignalAlgorithmRegistry _algorithmRegistry;
     private readonly ILogger<BacktestEngine> _logger;
 
     public BacktestEngine(
         IIndicatorCalculator indicatorCalculator,
-        ISignalService signalService,
-        IExitSignalService exitSignalService,
+        ISignalAlgorithmRegistry algorithmRegistry,
         ILogger<BacktestEngine> logger)
     {
         _indicatorCalculator = indicatorCalculator;
-        _signalService = signalService;
-        _exitSignalService = exitSignalService;
+        _algorithmRegistry = algorithmRegistry;
         _logger = logger;
     }
 
@@ -30,7 +26,7 @@ public sealed class BacktestEngine : IBacktestEngine
         IReadOnlyList<PriceBar> priceBars,
         DateOnly simulationStartDate,
         DateOnly simulationEndDate,
-        bool includeMacdInScoring,
+        AlgorithmType algorithmType,
         StrategyConfig config)
     {
         if (priceBars.Count == 0)
@@ -42,97 +38,63 @@ public sealed class BacktestEngine : IBacktestEngine
 
         var orderedBars = priceBars.OrderBy(x => x.Date).ToList();
         var computed = _indicatorCalculator.Compute(orderedBars);
+        var algorithm = _algorithmRegistry.Get(algorithmType);
+        var algorithmResult = algorithm.ComputeSignals(orderedBars, new AlgorithmContext(computed, config));
+        var pointsByDate = algorithmResult.Points.ToDictionary(p => p.Date);
         var trades = new List<Trade>();
 
         var hasBarsInWindow = orderedBars.Any(b => b.Date >= simulationStartDate && b.Date <= simulationEndDate);
         if (!hasBarsInWindow)
         {
-            _logger.LogWarning("No bars available in simulation window for {Symbol}. Start={StartDate}; End={EndDate}; AvailableMin={MinDate}; AvailableMax={MaxDate}",
-                symbol, simulationStartDate, simulationEndDate, orderedBars.Min(b => b.Date), orderedBars.Max(b => b.Date));
             var emptyMetrics = BuildMetrics(Array.Empty<Trade>());
             return new BacktestAssetResult(symbol, assetName, emptyMetrics, Array.Empty<Trade>(), "Aucune donnée OHLC disponible dans la fenêtre demandée.");
         }
 
-        ComputedIndicator? previousIndicator = null;
         OpenPosition? openPosition = null;
         var barsSinceLastBuy = config.MinimumBarsBetweenSameSignal;
         var barsSinceLastSell = config.MinimumBarsBetweenSameSignal;
-        var buyZoneCount = 0;
-        var sellZoneCount = 0;
 
-        for (var i = 0; i < computed.Count; i++)
+        foreach (var bar in orderedBars)
         {
-            var currentIndicator = computed[i];
-            var bar = orderedBars[i];
+            if (!pointsByDate.TryGetValue(bar.Date, out var point))
+            {
+                continue;
+            }
 
-            var entrySignal = _signalService.BuildSignal(currentIndicator, includeMacdInScoring, previousIndicator, config);
-            var exitSignal = _exitSignalService.BuildExitSignal(currentIndicator, previousIndicator, includeMacdInScoring, config);
             var inSimulationWindow = bar.Date >= simulationStartDate && bar.Date <= simulationEndDate;
-
-            if (inSimulationWindow && entrySignal.Label == SignalLabel.BuyZone)
-            {
-                buyZoneCount++;
-            }
-
-            if (inSimulationWindow && exitSignal.ExitSignal == ExitSignalLabel.SellZone)
-            {
-                sellZoneCount++;
-            }
-
             if (!inSimulationWindow)
             {
-                previousIndicator = currentIndicator;
                 continue;
             }
 
             if (openPosition is null)
             {
                 barsSinceLastBuy++;
-
-                if (entrySignal.Label == SignalLabel.BuyZone &&
-                    entrySignal.Score >= config.BuyScoreThreshold &&
-                    barsSinceLastBuy >= config.MinimumBarsBetweenSameSignal)
+                if (point.BuySignal && barsSinceLastBuy >= config.MinimumBarsBetweenSameSignal)
                 {
-                    _logger.LogDebug("OPEN {Symbol} at {Date} close={Price}. Reason={Reason}", symbol, bar.Date, bar.Close, entrySignal.PrimaryReason);
-                    openPosition = new OpenPosition(bar.Date, bar.Close, entrySignal.PrimaryReason);
+                    openPosition = new OpenPosition(bar.Date, bar.Close, point.BuyReason);
                     barsSinceLastBuy = 0;
                 }
             }
             else
             {
                 barsSinceLastSell++;
-                var shouldSell = exitSignal.ExitSignal == ExitSignalLabel.SellZone && exitSignal.ExitScore >= config.SellScoreThreshold;
-
-                if (!shouldSell && config.EarlySellEnabled)
+                if (point.SellSignal && barsSinceLastSell >= config.MinimumBarsBetweenSameSignal)
                 {
-                    shouldSell = exitSignal.ExitScore >= config.EarlySellWeaknessScoreThreshold;
-                }
-
-                if (shouldSell && barsSinceLastSell >= config.MinimumBarsBetweenSameSignal)
-                {
-                    var closedTrade = BuildTrade(symbol, openPosition, bar, exitSignal.PrimaryExitReason, config.FeePercentPerSide);
-                    _logger.LogDebug("CLOSE {Symbol} at {Date} close={Price}. Perf={Performance}. Reason={Reason}", symbol, bar.Date, bar.Close, closedTrade.PerformancePercent, exitSignal.PrimaryExitReason);
-                    trades.Add(closedTrade);
+                    trades.Add(BuildTrade(symbol, openPosition, bar, point.SellReason, config.FeePercentPerSide));
                     openPosition = null;
                     barsSinceLastSell = 0;
                 }
             }
-
-            previousIndicator = currentIndicator;
         }
 
         if (openPosition is not null)
         {
             var lastBar = orderedBars.Last(x => x.Date >= simulationStartDate && x.Date <= simulationEndDate);
-            var forcedTrade = BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide);
-            _logger.LogDebug("FORCED CLOSE {Symbol} at {Date}. Perf={Performance}", symbol, lastBar.Date, forcedTrade.PerformancePercent);
-            trades.Add(forcedTrade);
+            trades.Add(BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide));
         }
 
-        var metrics = BuildMetrics(trades);
-        _logger.LogInformation("Engine finished for {Symbol}. Bars={Bars}; Window={StartDate}->{EndDate}; BuyZoneCount={BuyZoneCount}; SellZoneCount={SellZoneCount}; Trades={Trades}; WinRate={WinRate}; Perf={Perf}",
-            symbol, orderedBars.Count, simulationStartDate, simulationEndDate, buyZoneCount, sellZoneCount, metrics.TotalTrades, metrics.WinRatePercent, metrics.TotalPerformancePercent);
-        return new BacktestAssetResult(symbol, assetName, metrics, trades);
+        return new BacktestAssetResult(symbol, assetName, BuildMetrics(trades), trades);
     }
 
     private static Trade BuildTrade(string symbol, OpenPosition openPosition, PriceBar exitBar, string exitReason, decimal feePercentPerSide)

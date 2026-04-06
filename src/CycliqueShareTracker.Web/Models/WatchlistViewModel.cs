@@ -3,6 +3,8 @@ namespace CycliqueShareTracker.Web.Models;
 public sealed class WatchlistViewModel
 {
     public bool IncludeMacdInScoring { get; init; } = true;
+    public string ActiveAlgorithmType { get; init; } = "RsiMeanReversion";
+    public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
     public string SortBy { get; init; } = "buy";
     public string Filter { get; init; } = "all";
     public string? TopBuySymbol { get; init; }

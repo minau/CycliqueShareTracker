@@ -21,4 +21,8 @@ public sealed record DashboardChartPoint(
     int? ExitScore,
     string? ExitPrimaryReason,
     IReadOnlyList<ScoreFactorDetail> ExitScoreFactors,
-    ExitSignalLabel? ExitSignalLabel);
+    ExitSignalLabel? ExitSignalLabel,
+    bool IsBuyZone,
+    bool IsSellZone,
+    bool BuySignal,
+    bool SellSignal);

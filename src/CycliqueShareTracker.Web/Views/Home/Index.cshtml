@@ -4,6 +4,22 @@
     <h2>Watchlist cyclique (MVP5)</h2>
     <form method="get" asp-action="Index" class="watchlist-toolbar">
         <label>
+            Algorithme
+            <select name="algorithmType" onchange="this.form.submit()">
+                @foreach (var algo in Enum.GetNames(typeof(CycliqueShareTracker.Application.Models.AlgorithmType)))
+                {
+                    if (algo == Model.ActiveAlgorithmType)
+                    {
+                        <option value="@algo" selected>@algo</option>
+                    }
+                    else
+                    {
+                        <option value="@algo">@algo</option>
+                    }
+                }
+            </select>
+        </label>
+        <label>
             Tri
             <select name="sortBy" onchange="this.form.submit()">
                 <option value="buy" selected="@(Model.SortBy == "buy")">Buy score décroissant</option>
@@ -21,15 +37,10 @@
                 <option value="neutral" selected="@(Model.Filter == "neutral")">Neutres</option>
             </select>
         </label>
-        <input type="hidden" id="includeMacdInScoringHidden" name="includeMacdInScoring" value="@(Model.IncludeMacdInScoring ? "true" : "false")" />
-        <label>
-            <input type="checkbox"
-                   @(Model.IncludeMacdInScoring ? "checked" : null)
-                   onchange="document.getElementById('includeMacdInScoringHidden').value = this.checked ? 'true' : 'false'; this.form.submit()" />
-            MACD dans le scoring
-        </label>
+        <input type="hidden" name="includeMacdInScoring" value="true" />
     </form>
 
+    <p>Algorithme actif: <strong>@Model.ActiveAlgorithmName</strong></p>
     <p>Top Buy candidate: <strong>@(Model.TopBuySymbol ?? "N/A")</strong> | Top Sell candidate: <strong>@(Model.TopSellSymbol ?? "N/A")</strong></p>
 </section>
 
@@ -79,7 +90,7 @@
                         <a asp-controller="Home"
                            asp-action="Detail"
                            asp-route-symbol="@item.Symbol"
-                           asp-route-includeMacdInScoring="@Model.IncludeMacdInScoring">Ouvrir</a>
+                           asp-route-algorithmType="@Model.ActiveAlgorithmType">Ouvrir</a>
                     </td>
                 </tr>
             }
@@ -89,6 +100,6 @@
 
 <form asp-action="Refresh" method="post">
     @Html.AntiForgeryToken()
-    <input type="hidden" name="includeMacdInScoring" value="@Model.IncludeMacdInScoring" />
+    <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
     <button type="submit">Lancer une mise à jour manuelle</button>
 </form>
