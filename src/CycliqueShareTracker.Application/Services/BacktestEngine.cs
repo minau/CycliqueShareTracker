@@ -41,28 +41,34 @@ public sealed class BacktestEngine : IBacktestEngine
         var algorithm = _algorithmRegistry.Get(algorithmType);
         var algorithmResult = algorithm.ComputeSignals(orderedBars, new AlgorithmContext(computed, config));
         var pointsByDate = algorithmResult.Points.ToDictionary(p => p.Date);
-        var trades = new List<Trade>();
 
-        var hasBarsInWindow = orderedBars.Any(b => b.Date >= simulationStartDate && b.Date <= simulationEndDate);
-        if (!hasBarsInWindow)
+        var barsInWindow = orderedBars
+            .Where(b => b.Date >= simulationStartDate && b.Date <= simulationEndDate)
+            .ToList();
+
+        if (barsInWindow.Count == 0)
         {
             var emptyMetrics = BuildMetrics(Array.Empty<Trade>());
             return new BacktestAssetResult(symbol, assetName, emptyMetrics, Array.Empty<Trade>(), "Aucune donnée OHLC disponible dans la fenêtre demandée.");
         }
 
+        var indicatorsInWindow = computed
+            .Where(i => i.Date >= simulationStartDate && i.Date <= simulationEndDate)
+            .ToList();
+
+        var pointsInWindow = algorithmResult.Points
+            .Where(p => p.Date >= simulationStartDate && p.Date <= simulationEndDate)
+            .ToList();
+
+        var trades = new List<Trade>();
+
         OpenPosition? openPosition = null;
         var barsSinceLastBuy = config.MinimumBarsBetweenSameSignal;
         var barsSinceLastSell = config.MinimumBarsBetweenSameSignal;
 
-        foreach (var bar in orderedBars)
+        foreach (var bar in barsInWindow)
         {
             if (!pointsByDate.TryGetValue(bar.Date, out var point))
-            {
-                continue;
-            }
-
-            var inSimulationWindow = bar.Date >= simulationStartDate && bar.Date <= simulationEndDate;
-            if (!inSimulationWindow)
             {
                 continue;
             }
@@ -90,11 +96,42 @@ public sealed class BacktestEngine : IBacktestEngine
 
         if (openPosition is not null)
         {
-            var lastBar = orderedBars.Last(x => x.Date >= simulationStartDate && x.Date <= simulationEndDate);
+            var lastBar = barsInWindow[^1];
             trades.Add(BuildTrade(symbol, openPosition, lastBar, "Sortie forcée en fin de période de backtest.", config.FeePercentPerSide));
         }
 
-        return new BacktestAssetResult(symbol, assetName, BuildMetrics(trades), trades);
+        var generatedSignals = BuildSignals(pointsInWindow);
+
+        return new BacktestAssetResult(
+            symbol,
+            assetName,
+            BuildMetrics(trades),
+            trades,
+            null,
+            barsInWindow,
+            indicatorsInWindow,
+            algorithmResult with { Points = pointsInWindow },
+            generatedSignals);
+    }
+
+    private static IReadOnlyList<BacktestSignal> BuildSignals(IReadOnlyList<AlgorithmSignalPoint> points)
+    {
+        var signals = new List<BacktestSignal>();
+
+        foreach (var point in points)
+        {
+            if (point.BuySignal)
+            {
+                signals.Add(new BacktestSignal(point.Date, "Buy", point.BuyScore, point.BuyReason));
+            }
+
+            if (point.SellSignal)
+            {
+                signals.Add(new BacktestSignal(point.Date, "Sell", point.SellScore, point.SellReason));
+            }
+        }
+
+        return signals;
     }
 
     private static Trade BuildTrade(string symbol, OpenPosition openPosition, PriceBar exitBar, string exitReason, decimal feePercentPerSide)

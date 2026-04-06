@@ -13,17 +13,20 @@ public class HomeController : Controller
     private readonly IDashboardService _dashboardService;
     private readonly IDataSyncService _dataSyncService;
     private readonly IBacktestService _backtestService;
+    private readonly IBacktestAnalysisExportService _backtestAnalysisExportService;
     private readonly ILogger<HomeController> _logger;
 
     public HomeController(
         IDashboardService dashboardService,
         IDataSyncService dataSyncService,
         IBacktestService backtestService,
+        IBacktestAnalysisExportService backtestAnalysisExportService,
         ILogger<HomeController> logger)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
         _backtestService = backtestService;
+        _backtestAnalysisExportService = backtestAnalysisExportService;
         _logger = logger;
     }
 
@@ -142,6 +145,7 @@ public class HomeController : Controller
         [FromQuery] string? endDate = null,
         [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
         [FromQuery] bool runBacktest = false,
+        [FromQuery] bool generateAnalysisJson = false,
         CancellationToken cancellationToken = default)
     {
         var trackedAssets = _dashboardService.GetTrackedAssets();
@@ -199,6 +203,17 @@ public class HomeController : Controller
 
                 model.HasExecuted = true;
                 model.ExecutedAtUtc = DateTime.UtcNow;
+
+                if (model.GenerateAnalysisJson)
+                {
+                    model.AnalysisJsonPath = await _backtestAnalysisExportService.ExportAsync(
+                        model.Result,
+                        model.SelectedSymbol,
+                        model.ExecutedAtUtc,
+                        cancellationToken);
+
+                    _logger.LogInformation("Backtest analysis JSON generated at {AnalysisJsonPath}", model.AnalysisJsonPath);
+                }
             }
             catch (Exception ex)
             {
