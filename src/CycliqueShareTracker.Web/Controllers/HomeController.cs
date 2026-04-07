@@ -4,6 +4,7 @@ using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Web.Controllers;
 
@@ -13,17 +14,23 @@ public class HomeController : Controller
     private readonly IDashboardService _dashboardService;
     private readonly IDataSyncService _dataSyncService;
     private readonly IBacktestService _backtestService;
+    private readonly IBacktestAnalysisExportService _backtestAnalysisExportService;
     private readonly ILogger<HomeController> _logger;
+    private readonly BacktestExportOptions _backtestExportOptions;
 
     public HomeController(
         IDashboardService dashboardService,
         IDataSyncService dataSyncService,
         IBacktestService backtestService,
+        IBacktestAnalysisExportService backtestAnalysisExportService,
+        IOptions<BacktestExportOptions> backtestExportOptions,
         ILogger<HomeController> logger)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
         _backtestService = backtestService;
+        _backtestAnalysisExportService = backtestAnalysisExportService;
+        _backtestExportOptions = backtestExportOptions.Value;
         _logger = logger;
     }
 
@@ -142,6 +149,7 @@ public class HomeController : Controller
         [FromQuery] string? endDate = null,
         [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
         [FromQuery] bool runBacktest = false,
+        [FromQuery] bool generateAnalysisJson = false,
         CancellationToken cancellationToken = default)
     {
         var trackedAssets = _dashboardService.GetTrackedAssets();
@@ -154,6 +162,7 @@ public class HomeController : Controller
             StartDate = start,
             EndDate = end,
             IncludeMacdInScoring = true,
+            GenerateAnalysisJson = generateAnalysisJson,
             SelectedAlgorithmType = algorithmType.ToString(),
             SelectedAlgorithmName = algorithmType.ToDisplayName(),
             SymbolOptions = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
@@ -173,8 +182,8 @@ public class HomeController : Controller
                     ? trackedAssets.Select(x => x.Symbol).ToList()
                     : new List<string> { model.SelectedSymbol };
 
-                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
-                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType);
+                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}; GenerateAnalysisJson={GenerateAnalysisJson}",
+                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType, model.GenerateAnalysisJson);
 
                 var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
                     model.StartDate,
@@ -199,6 +208,30 @@ public class HomeController : Controller
 
                 model.HasExecuted = true;
                 model.ExecutedAtUtc = DateTime.UtcNow;
+
+                if (model.GenerateAnalysisJson)
+                {
+                    try
+                    {
+                        model.AnalysisJsonPath = await _backtestAnalysisExportService.ExportAsync(
+                            model.Result,
+                            model.SelectedSymbol,
+                            model.ExecutedAtUtc,
+                            cancellationToken);
+
+                        model.AnalysisJsonDownloadUrl = Url.Action(nameof(DownloadBacktestAnalysis), new { filePath = model.AnalysisJsonPath });
+                        _logger.LogInformation("Backtest analysis JSON generated at absolute path: {AnalysisJsonPath}", model.AnalysisJsonPath);
+                    }
+                    catch (Exception exportException)
+                    {
+                        _logger.LogError(exportException,
+                            "Backtest analysis JSON export failed. SymbolSelection={SelectedSymbol}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
+                            model.SelectedSymbol,
+                            model.StartDate,
+                            model.EndDate,
+                            algorithmType);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -209,6 +242,47 @@ public class HomeController : Controller
         }
 
         return View(model);
+    }
+
+
+    [HttpGet]
+    public IActionResult DownloadBacktestAnalysis([FromQuery] string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return BadRequest("Le chemin du fichier est requis.");
+        }
+
+        var fullPath = Path.GetFullPath(filePath);
+        if (!System.IO.File.Exists(fullPath))
+        {
+            _logger.LogWarning("Backtest analysis download requested but file was not found. Path={FilePath}", fullPath);
+            return NotFound("Le fichier JSON n'existe pas.");
+        }
+
+        var exportRoot = ResolveExportRoot();
+        if (!fullPath.StartsWith(exportRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Backtest analysis download blocked for path outside export directory. Path={FilePath}; ExportRoot={ExportRoot}", fullPath, exportRoot);
+            return Forbid();
+        }
+
+        var fileName = Path.GetFileName(fullPath);
+        return PhysicalFile(fullPath, "application/json", fileName);
+    }
+
+    private string ResolveExportRoot()
+    {
+        var envOverride = Environment.GetEnvironmentVariable("BACKTEST_EXPORT_DIRECTORY");
+        var configured = string.IsNullOrWhiteSpace(envOverride)
+            ? _backtestExportOptions.DirectoryPath
+            : envOverride;
+
+        var root = string.IsNullOrWhiteSpace(configured)
+            ? "/var/cyclique/exports"
+            : configured;
+
+        return Path.GetFullPath(root);
     }
 
     [HttpGet]
