@@ -33,6 +33,7 @@ builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Al
 builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.TrendFollowingAlgorithm>();
 builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.PullbackInTrendAlgorithm>();
 builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.DrawdownReboundAlgorithm>();
+builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Algorithms.CompositeTrendPullbackAlgorithm>();
 builder.Services.AddScoped<ISignalAlgorithmRegistry, SignalAlgorithmRegistry>();
 builder.Services.AddScoped<ISignalService, SignalService>();
 builder.Services.AddScoped<IExitSignalService, ExitSignalService>();

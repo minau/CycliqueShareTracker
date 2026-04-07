@@ -7,5 +7,6 @@ public enum AlgorithmType
     MacdReversal = 2,
     TrendFollowing = 3,
     PullbackInTrend = 4,
-    DrawdownRebound = 5
+    DrawdownRebound = 5,
+    CompositeTrendPullback = 6
 }

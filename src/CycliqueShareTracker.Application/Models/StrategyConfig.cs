@@ -17,5 +17,7 @@ public sealed record StrategyConfig
     public decimal MinGapBetweenSma50AndSma200Pct { get; init; } = 1m;
     public bool EarlySellEnabled { get; init; } = true;
     public int EarlySellWeaknessScoreThreshold { get; init; } = 45;
+    public decimal StrongExtensionAboveSma50ForSellPct { get; init; } = 10m;
+    public MetaAlgoParameters MetaAlgoParameters { get; init; } = MetaAlgoParameters.Default;
     public decimal FeePercentPerSide { get; init; } = 0.1m;
 }

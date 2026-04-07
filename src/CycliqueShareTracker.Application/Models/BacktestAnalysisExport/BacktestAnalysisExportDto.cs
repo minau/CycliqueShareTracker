@@ -1,3 +1,5 @@
+using CycliqueShareTracker.Application.Models;
+
 namespace CycliqueShareTracker.Application.Models.BacktestAnalysisExport;
 
 public sealed record BacktestAnalysisExportDto(
@@ -34,7 +36,9 @@ public sealed record BacktestAnalysisAlgorithmParametersDto(
     decimal MaxFlatSlopeThreshold,
     decimal MinGapBetweenSma50AndSma200Pct,
     bool EarlySellEnabled,
-    int EarlySellWeaknessScoreThreshold);
+    int EarlySellWeaknessScoreThreshold,
+    decimal StrongExtensionAboveSma50ForSellPct,
+    MetaAlgoParameters MetaAlgoParameters);
 
 
 public sealed record BacktestAnalysisAssetDto(

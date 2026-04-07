@@ -12,4 +12,7 @@ public sealed record AlgorithmSignalPoint(
     string BuyReason,
     string SellReason,
     IReadOnlyList<ScoreFactorDetail> BuyDetails,
-    IReadOnlyList<ScoreFactorDetail> SellDetails);
+    IReadOnlyList<ScoreFactorDetail> SellDetails)
+{
+    public IReadOnlyDictionary<string, object?> DebugValues { get; init; } = new Dictionary<string, object?>();
+}

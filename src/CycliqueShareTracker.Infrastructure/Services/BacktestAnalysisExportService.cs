@@ -66,7 +66,9 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
                     strategy.MaxFlatSlopeThreshold,
                     strategy.MinGapBetweenSma50AndSma200Pct,
                     strategy.EarlySellEnabled,
-                    strategy.EarlySellWeaknessScoreThreshold)),
+                    strategy.EarlySellWeaknessScoreThreshold,
+                    strategy.StrongExtensionAboveSma50ForSellPct,
+                    strategy.MetaAlgoParameters)),
             result.Assets.Select(MapAsset).ToList(),
             result.AggregateMetrics);
 
@@ -244,12 +246,14 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
             return null;
         }
 
-        return new Dictionary<string, object?>
+        var debugValues = new Dictionary<string, object?>(point.DebugValues)
         {
             ["confidence"] = point.Confidence,
             ["buyDetails"] = point.BuyDetails,
             ["sellDetails"] = point.SellDetails
         };
+
+        return debugValues;
     }
 
 

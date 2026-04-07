@@ -12,6 +12,7 @@ public static class AlgorithmTypeExtensions
             AlgorithmType.TrendFollowing => "Trend Following SMA/EMA",
             AlgorithmType.PullbackInTrend => "Pullback in Trend",
             AlgorithmType.DrawdownRebound => "Drawdown Rebound",
+            AlgorithmType.CompositeTrendPullback => "Composite Trend Pullback",
             _ => algorithmType.ToString()
         };
     }
