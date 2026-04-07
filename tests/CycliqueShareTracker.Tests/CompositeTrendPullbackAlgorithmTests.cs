@@ -8,133 +8,89 @@ public class CompositeTrendPullbackAlgorithmTests
     private readonly CompositeTrendPullbackAlgorithm _algorithm = new();
 
     [Fact]
-    public void ComputeSignals_ShouldTriggerBuy_InBullTrendWithHealthyPullbackAndMacdRestart()
+    public void ComputeSignals_ShouldKeepBuyLogicWorking()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 1, 1), close: 101m, sma50: 100m, sma200: 98m, rsi: 42m, macd: 0.10m, signal: 0.12m, hist: -0.02m, ema12: 101m, ema26: 100m, drawdown: -9m),
-            BuildIndicator(new DateOnly(2026, 1, 2), close: 102m, sma50: 100.2m, sma200: 98.1m, rsi: 46m, macd: 0.18m, signal: 0.14m, hist: 0.04m, ema12: 101.3m, ema26: 100.2m, drawdown: -8m)
+            BuildIndicator(new DateOnly(2026, 1, 1), 101m, 100m, 98m, 42m, 0.10m, 0.12m, -0.02m, 101m, 100m, -9m),
+            BuildIndicator(new DateOnly(2026, 1, 2), 102m, 100.2m, 98.1m, 46m, 0.18m, 0.14m, 0.04m, 101.3m, 100.2m, -8m)
         };
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
-
-        Assert.True(point.BuySignal);
-        Assert.True(point.BuyScore >= 55);
+        Assert.True(result.Points[^1].BuySignal);
     }
 
     [Fact]
-    public void ComputeSignals_ShouldOnlyWarn_WhenMomentumSlowsButTrendStillBullish()
+    public void ComputeSignals_ShouldOnlyWarn_WhenOnlyFatigueSignalsAppear()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 2, 1), close: 100m, sma50: 98m, sma200: 95m, rsi: 67m, macd: 0.25m, signal: 0.20m, hist: 0.05m, ema12: 101m, ema26: 99m, drawdown: -6m),
-            BuildIndicator(new DateOnly(2026, 2, 2), close: 101m, sma50: 98.2m, sma200: 95.1m, rsi: 67m, macd: 0.24m, signal: 0.21m, hist: 0.03m, ema12: 101.1m, ema26: 99.2m, drawdown: -5.5m)
+            BuildIndicator(new DateOnly(2026, 2, 1), 108m, 100m, 95m, 67m, 0.22m, 0.20m, 0.04m, 104m, 101m, -4m),
+            BuildIndicator(new DateOnly(2026, 2, 2), 108.2m, 100.2m, 95.1m, 67m, 0.21m, 0.20m, 0.01m, 104.2m, 101.2m, -3.8m)
         };
 
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
+        var point = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators)).Points[^1];
 
         Assert.False(point.SellSignal);
-        Assert.True((int)point.DebugValues["earlyWarningScore"]! >= 20);
-        Assert.Equal(false, point.DebugValues["sellConfirmedByGate"]);
-        Assert.Equal(1, point.DebugValues["warningDuration"]);
+        Assert.Equal("none", point.DebugValues["sellDecisionMode"]);
+        Assert.True((bool)point.DebugValues["warningActive"]!);
     }
 
     [Fact]
-    public void ComputeSignals_ShouldConfirmSell_WhenGateConditionsAndScoreAreMet()
+    public void ComputeSignals_ShouldSell_OnConfirmedBreak_WhenTwoConditionsAreTrue()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 3, 1), close: 104m, sma50: 100m, sma200: 97m, rsi: 55m, macd: 0.26m, signal: 0.20m, hist: 0.06m, ema12: 103.5m, ema26: 101m, drawdown: -4m),
-            BuildIndicator(new DateOnly(2026, 3, 2), close: 102m, sma50: 100.1m, sma200: 97.1m, rsi: 48m, macd: 0.16m, signal: 0.21m, hist: -0.02m, ema12: 101.5m, ema26: 101.8m, drawdown: -5m),
-            BuildIndicator(new DateOnly(2026, 3, 3), close: 101m, sma50: 100.1m, sma200: 97.2m, rsi: 46m, macd: 0.10m, signal: 0.20m, hist: -0.04m, ema12: 100.8m, ema26: 101.7m, drawdown: -6m)
+            BuildIndicator(new DateOnly(2026, 3, 1), 104m, 100m, 97m, 55m, 0.26m, 0.20m, 0.06m, 103.5m, 101m, -4m),
+            BuildIndicator(new DateOnly(2026, 3, 2), 99m, 100.1m, 97.1m, 48m, 0.24m, 0.25m, -0.01m, 101.5m, 101.8m, -5m)
         };
 
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
+        var point = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators)).Points[^1];
 
         Assert.True(point.SellSignal);
+        Assert.Equal("confirmed_break", point.DebugValues["sellDecisionMode"]);
+        Assert.True((int)point.DebugValues["confirmedSellConditionsCount"]! >= 2);
+    }
+
+    [Fact]
+    public void ComputeSignals_ShouldSell_OnExtendedReversalSpecialCase()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 4, 1), 112m, 100m, 96m, 69m, 0.30m, 0.24m, 0.06m, 106m, 103m, -3m),
+            BuildIndicator(new DateOnly(2026, 4, 2), 111m, 100.2m, 96.2m, 68m, 0.18m, 0.22m, -0.04m, 105m, 103.2m, -2.5m)
+        };
+
+        var point = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators)).Points[^1];
+
+        Assert.True(point.SellSignal);
+        Assert.Equal("extended_reversal", point.DebugValues["sellDecisionMode"]);
+    }
+
+    [Fact]
+    public void ComputeSignals_ShouldExposeConfirmedConditionsInDebugValues()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 5, 1), 103m, 100m, 97m, 52m, 0.15m, 0.10m, 0.02m, 102m, 101m, -3m),
+            BuildIndicator(new DateOnly(2026, 5, 2), 99m, 100m, 97.1m, 47m, 0.08m, 0.14m, -0.03m, 100.5m, 101.2m, -4m)
+        };
+
+        var point = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators)).Points[^1];
+
+        var conditions = (IReadOnlyList<string>)point.DebugValues["confirmedSellConditions"]!;
+        Assert.NotEmpty(conditions);
         Assert.True((bool)point.DebugValues["sellConfirmedByGate"]!);
-        var gateReasons = (IReadOnlyList<string>)point.DebugValues["sellGateReasons"]!;
-        Assert.NotEmpty(gateReasons);
-    }
-
-
-    [Fact]
-    public void ComputeSignals_ShouldSellEarly_WhenGateIsTrueAndConfirmedScoreAtLeast12_EvenIfThresholdIsHigh()
-    {
-        var indicators = new List<ComputedIndicator>
-        {
-            BuildIndicator(new DateOnly(2026, 3, 10), close: 104m, sma50: 100m, sma200: 97m, rsi: 58m, macd: 0.26m, signal: 0.20m, hist: 0.05m, ema12: 103.2m, ema26: 101m, drawdown: -4m),
-            BuildIndicator(new DateOnly(2026, 3, 11), close: 103m, sma50: 100.05m, sma200: 97.1m, rsi: 57m, macd: 0.15m, signal: 0.22m, hist: -0.01m, ema12: 102.8m, ema26: 101.1m, drawdown: -4.5m)
-        };
-
-        var parameters = MetaAlgoParameters.Default with { SellScoreThreshold = 80 };
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators, parameters));
-        var point = result.Points[^1];
-
-        Assert.True(point.SellSignal);
-        Assert.Equal(true, point.DebugValues["sellByEarlyGate"]);
-    }
-
-    [Fact]
-    public void ComputeSignals_ShouldExposeRsiMomentumStateDebug()
-    {
-        var indicators = new List<ComputedIndicator>
-        {
-            BuildIndicator(new DateOnly(2026, 4, 1), close: 108m, sma50: 100m, sma200: 96m, rsi: 69m, macd: 0.30m, signal: 0.24m, hist: 0.06m, ema12: 106m, ema26: 103m, drawdown: -3m),
-            BuildIndicator(new DateOnly(2026, 4, 2), close: 109m, sma50: 100.2m, sma200: 96.2m, rsi: 68m, macd: 0.24m, signal: 0.23m, hist: -0.02m, ema12: 105.3m, ema26: 103.5m, drawdown: -2.5m)
-        };
-
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
-
-        Assert.Equal("falling", point.DebugValues["rsiMomentumState"]);
-        Assert.NotNull(point.DebugValues["confirmedSellScore"]);
-    }
-
-
-    [Fact]
-    public void ComputeSignals_ShouldSellAfterPersistentWarning_WhenConfirmedScoreReaches10()
-    {
-        var indicators = new List<ComputedIndicator>
-        {
-            BuildIndicator(new DateOnly(2026, 5, 10), close: 111m, sma50: 100m, sma200: 96m, rsi: 67m, macd: 0.20m, signal: 0.18m, hist: 0.03m, ema12: 104m, ema26: 101m, drawdown: -3m),
-            BuildIndicator(new DateOnly(2026, 5, 11), close: 110.5m, sma50: 100m, sma200: 96.1m, rsi: 67m, macd: 0.19m, signal: 0.18m, hist: -0.01m, ema12: 104m, ema26: 101.2m, drawdown: -3.2m),
-            BuildIndicator(new DateOnly(2026, 5, 12), close: 110m, sma50: 100m, sma200: 96.2m, rsi: 67m, macd: 0.18m, signal: 0.17m, hist: -0.02m, ema12: 103.9m, ema26: 101.3m, drawdown: -3.5m)
-        };
-
-        var parameters = MetaAlgoParameters.Default with { SellScoreThreshold = 80, StrongExtensionAboveSma50ForSellPct = 10m };
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators, parameters));
-        var point = result.Points[^1];
-
-        Assert.True(point.SellSignal);
-        Assert.Equal(true, point.DebugValues["sellByProgressiveWarning"]);
-        Assert.True((int)point.DebugValues["warningDuration"]! >= 2);
     }
 
     [Fact]
     public void ComputeSignals_ShouldRespectMinimumBarsBetweenSameSignal()
     {
         var indicators = Enumerable.Range(0, 8)
-            .Select(index => BuildIndicator(
-                new DateOnly(2026, 6, 1).AddDays(index),
-                close: 102m + index,
-                sma50: 100m + (index * 0.2m),
-                sma200: 98m,
-                rsi: 45m,
-                macd: 0.3m,
-                signal: 0.1m,
-                hist: 0.2m,
-                ema12: 101m,
-                ema26: 99m,
-                drawdown: -8m))
+            .Select(index => BuildIndicator(new DateOnly(2026, 6, 1).AddDays(index), 102m + index, 100m + (index * 0.2m), 98m, 45m, 0.3m, 0.1m, 0.2m, 101m, 99m, -8m))
             .ToList();
 
-        var parameters = MetaAlgoParameters.Default with { MinimumBarsBetweenSameSignal = 3 };
-        var context = BuildContext(indicators, parameters);
-
+        var context = BuildContext(indicators, MetaAlgoParameters.Default with { MinimumBarsBetweenSameSignal = 3 });
         var result = _algorithm.ComputeSignals(BuildBars(indicators), context);
         var buyDates = result.Points.Where(p => p.BuySignal).Select(p => p.Date).ToList();
 
@@ -169,19 +125,6 @@ public class CompositeTrendPullbackAlgorithmTests
         decimal? ema26,
         decimal? drawdown)
     {
-        return new ComputedIndicator(
-            date,
-            sma50,
-            sma200,
-            rsi,
-            drawdown,
-            close,
-            close - 0.2m,
-            macd,
-            signal,
-            hist,
-            null,
-            ema12,
-            ema26);
+        return new ComputedIndicator(date, sma50, sma200, rsi, drawdown, close, close - 0.2m, macd, signal, hist, null, ema12, ema26);
     }
 }

@@ -44,28 +44,39 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
 
             var buyDetails = BuildBuyScoreDetails(current, previous, beforePrevious, parameters, slope, distanceToSma50Pct, smaGapPct, histogramDelta, rsiZone, pullbackType);
 
-            var warningDetails = BuildEarlyWarningDetails(current, parameters, slope, histogramDelta, rsiMomentumState);
-            var confirmedDetails = BuildConfirmedSellDetails(current, previous, parameters, distanceToSma50Pct, histogramDelta, histogramDecliningTwoBars);
-
+            // Warning is now informational only.
+            var warningDetails = BuildEarlyWarningDetails(current, parameters, slope, histogramDelta, rsiMomentumState, histogramDecliningTwoBars);
             var earlyWarningScore = CountTriggeredScore(warningDetails);
-            var confirmedSellScore = CountTriggeredScore(confirmedDetails);
-
-            var buyScore = CountTriggeredScore(buyDetails);
-            var buyZone = buyScore >= parameters.BuyScoreThreshold;
-
-            var gateReasons = BuildSellGateReasons(current, previous, parameters, distanceToSma50Pct, histogramDecliningTwoBars);
-            var sellConfirmedByGate = gateReasons.Count > 0;
-
             var warningActive = parameters.EarlySellEnabled && earlyWarningScore >= parameters.EarlySellWeaknessScoreThreshold;
             warningDuration = warningActive ? warningDuration + 1 : 0;
 
-            var progressiveBonus = warningDuration >= 2 && sellConfirmedByGate ? 3 : 0;
-            confirmedSellScore = Math.Clamp(confirmedSellScore + progressiveBonus, 0, 100);
+            var confirmedConditions = BuildConfirmedSellConditions(current);
+            var confirmedConditionsCount = confirmedConditions.Count;
+            var extensionReversal = distanceToSma50Pct.HasValue
+                                    && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct
+                                    && ((current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value)
+                                        || (current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value));
 
-            var sellByThresholdGate = confirmedSellScore >= parameters.SellScoreThreshold && sellConfirmedByGate;
-            var sellByEarlyGate = sellConfirmedByGate && confirmedSellScore >= 12;
-            var sellByProgressiveWarning = warningDuration >= 2 && confirmedSellScore >= 10;
-            var sellZone = sellByThresholdGate || sellByEarlyGate;
+            var sellDecisionMode = "none";
+            var sellZone = false;
+
+            if (confirmedConditionsCount >= 2)
+            {
+                sellZone = true;
+                sellDecisionMode = "confirmed_break";
+            }
+            else if (extensionReversal)
+            {
+                sellZone = true;
+                sellDecisionMode = "extended_reversal";
+            }
+
+            var confirmedSellScore = ComputeConfirmedSellScore(confirmedConditionsCount, extensionReversal);
+            var sellDetails = BuildConfirmedSellDetails(confirmedConditions, confirmedConditionsCount, extensionReversal);
+            var sellConfirmedByGate = sellZone;
+
+            var buyScore = CountTriggeredScore(buyDetails);
+            var buyZone = buyScore >= parameters.BuyScoreThreshold;
 
             var buyCooldownOk = IsCooldownCompleted(lastBuySignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
             var sellCooldownOk = IsCooldownCompleted(lastSellSignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
@@ -88,12 +99,12 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                 : "Achat non validé: configuration incomplète ou extension trop élevée sans reprise suffisante.";
 
             var sellReason = sellSignal
-                ? sellByEarlyGate
-                    ? "Sortie anticipée confirmée: gate SELL validé + score confirmé >= 12."
-                    : "Sortie confirmée: dégradation validée par gate SELL (momentum/tendance/extension)."
+                ? sellDecisionMode == "extended_reversal"
+                    ? "Sortie sur sur-extension avec début de retournement confirmé (MACD/EMA)."
+                    : "Sortie confirmée: au moins 2 cassures structurelles sont validées."
                 : warningActive
-                    ? "Warning SELL: fatigue détectée, sans confirmation suffisante pour sortie ferme."
-                    : "Pas de sortie: ni warning fort, ni confirmation baissière.";
+                    ? "Warning SELL informatif: fatigue détectée sans cassure confirmée."
+                    : "Pas de sortie: structure de tendance encore valide.";
 
             var signalType = buySignal && sellSignal
                 ? "Conflict"
@@ -101,8 +112,6 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                 : sellSignal ? "Sell"
                 : warningActive ? "Warning"
                 : "Neutral";
-
-            var sellDetails = warningDetails.Concat(confirmedDetails).ToList();
 
             var point = new AlgorithmSignalPoint(
                 current.Date,
@@ -116,7 +125,7 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                 buyReason,
                 sellReason,
                 buyDetails,
-                sellDetails)
+                warningDetails.Concat(sellDetails).ToList())
             {
                 DebugValues = new Dictionary<string, object?>
                 {
@@ -132,12 +141,16 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                     ["earlyWarningScore"] = earlyWarningScore,
                     ["confirmedSellScore"] = confirmedSellScore,
                     ["sellConfirmedByGate"] = sellConfirmedByGate,
-                    ["sellGateReasons"] = gateReasons,
+                    ["sellGateReasons"] = confirmedConditions,
                     ["warningActive"] = warningActive,
                     ["warningDuration"] = warningDuration,
-                    ["sellByEarlyGate"] = sellByEarlyGate,
-                    ["sellByProgressiveWarning"] = sellByProgressiveWarning,
-                    ["progressiveBonus"] = progressiveBonus,
+                    ["sellByEarlyGate"] = false,
+                    ["sellByProgressiveWarning"] = false,
+                    ["progressiveBonus"] = 0,
+                    ["confirmedSellConditionsCount"] = confirmedConditionsCount,
+                    ["confirmedSellConditions"] = confirmedConditions,
+                    ["sellDecisionMode"] = sellDecisionMode,
+                    ["extensionReversal"] = extensionReversal,
                     ["buyThreshold"] = parameters.BuyScoreThreshold,
                     ["sellThreshold"] = parameters.SellScoreThreshold,
                     ["buyWeights"] = new Dictionary<string, int>
@@ -170,48 +183,49 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         return new AlgorithmResult(AlgorithmType, DisplayName, points);
     }
 
-    private static IReadOnlyList<string> BuildSellGateReasons(
-        ComputedIndicator current,
-        ComputedIndicator? previous,
-        MetaAlgoParameters parameters,
-        decimal? distanceToSma50Pct,
-        bool histogramDecliningTwoBars)
+    private static int ComputeConfirmedSellScore(int confirmedConditionsCount, bool extensionReversal)
     {
-        var reasons = new List<string>();
-
-        var emaBroken = current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value;
-        var macdBroken = current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value;
-        var rsiBroken = current.Rsi14.HasValue && current.Rsi14.Value < 50m;
-        var bearishCross = WasRecentBearishMacdCross(previous, current);
-        var strongExtension = distanceToSma50Pct.HasValue && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct;
-        var extensionWithWeakness = strongExtension && histogramDecliningTwoBars && current.Rsi14.HasValue && current.Rsi14.Value > 65m;
-
-        if (emaBroken)
+        var score = confirmedConditionsCount switch
         {
-            reasons.Add("EMA12 < EMA26");
+            >= 3 => 80,
+            2 => 62,
+            1 => 30,
+            _ => 0
+        };
+
+        if (extensionReversal)
+        {
+            score = Math.Max(score, 65);
         }
 
-        if (macdBroken)
+        return Math.Clamp(score, 0, 100);
+    }
+
+    private static List<string> BuildConfirmedSellConditions(ComputedIndicator current)
+    {
+        var conditions = new List<string>();
+
+        if (current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value)
         {
-            reasons.Add("MACD line < signal line");
+            conditions.Add("EMA12 < EMA26");
         }
 
-        if (rsiBroken)
+        if (current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value)
         {
-            reasons.Add("RSI < 50");
+            conditions.Add("MACD line < signal line");
         }
 
-        if (bearishCross)
+        if (current.Rsi14.HasValue && current.Rsi14.Value < 50m)
         {
-            reasons.Add("Croisement MACD baissier récent");
+            conditions.Add("RSI < 50");
         }
 
-        if (extensionWithWeakness)
+        if (current.Sma50.HasValue && current.Close < current.Sma50.Value)
         {
-            reasons.Add("Sur-extension forte + faiblesse momentum confirmée");
+            conditions.Add("Close < SMA50");
         }
 
-        return reasons;
+        return conditions;
     }
 
     private static List<ScoreFactorDetail> BuildEarlyWarningDetails(
@@ -219,41 +233,26 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         MetaAlgoParameters parameters,
         decimal? slope,
         decimal? histogramDelta,
-        string rsiMomentumState)
+        string rsiMomentumState,
+        bool histogramDecliningTwoBars)
     {
         return new List<ScoreFactorDetail>
         {
             new("Warning: histogramme MACD en baisse (1 barre)", 8, histogramDelta.HasValue && histogramDelta.Value < 0m, "Fatigue momentum naissante, sans confirmation complète."),
+            new("Warning: histogramme MACD en baisse persistante (2 barres)", 10, histogramDecliningTwoBars, "Warning fort, informatif uniquement."),
             new("Warning: RSI qui plafonne", 6, rsiMomentumState == "flat", "Le momentum RSI cesse de progresser."),
             new("Warning: RSI > 65", 4, current.Rsi14.HasValue && current.Rsi14.Value > 65m, "Zone de vigilance de fin de jambe haussière."),
-            new("Warning: pente SMA50 qui ralentit", 5, slope.HasValue && slope.Value <= parameters.MaxFlatSlopeThreshold, "Ralentissement de la tendance intermédiaire."),
-            new("Warning top detection (léger)", 8, current.Rsi14.HasValue && current.Rsi14.Value > 65m && histogramDelta.HasValue && histogramDelta.Value < 0m, "Alerte de sommet potentiel, mais pas sortie ferme.")
+            new("Warning: pente SMA50 qui ralentit", 5, slope.HasValue && slope.Value <= parameters.MaxFlatSlopeThreshold, "Ralentissement de la tendance intermédiaire.")
         };
     }
 
-    private static List<ScoreFactorDetail> BuildConfirmedSellDetails(
-        ComputedIndicator current,
-        ComputedIndicator? previous,
-        MetaAlgoParameters parameters,
-        decimal? distanceToSma50Pct,
-        decimal? histogramDelta,
-        bool histogramDecliningTwoBars)
+    private static List<ScoreFactorDetail> BuildConfirmedSellDetails(IReadOnlyList<string> confirmedConditions, int confirmedConditionsCount, bool extensionReversal)
     {
-        var bearishCross = WasRecentBearishMacdCross(previous, current);
-        var macdBelowSignal = current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value;
-        var emaBroken = current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value;
-        var rsiBroken = current.Rsi14.HasValue && current.Rsi14.Value < 50m;
-        var strongExtension = distanceToSma50Pct.HasValue && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct;
-        var extensionWithWeakness = strongExtension && histogramDecliningTwoBars && current.Rsi14.HasValue && current.Rsi14.Value > 65m;
-
         return new List<ScoreFactorDetail>
         {
-            new("Confirm: EMA12 < EMA26", 18, emaBroken, "Cassure de tendance court terme."),
-            new("Confirm: MACD line < signal", 16, macdBelowSignal, "Momentum cassé."),
-            new("Confirm: croisement MACD baissier récent", 14, bearishCross, "Retournement confirmé."),
-            new("Confirm: RSI < 50", 14, rsiBroken, "Momentum baissier installé."),
-            new("Confirm: sur-extension + faiblesse momentum persistante", 14, extensionWithWeakness, "Cas robuste de retournement après excès."),
-            new("Confirm: histogramme < 0 avec MACD < signal", 8, histogramDelta.HasValue && histogramDelta.Value < 0m && macdBelowSignal, "Renfort secondaire si momentum négatif cohérent.")
+            new("Confirm: au moins 2 cassures structurelles", 40, confirmedConditionsCount >= 2, "EMA/MACD/RSI/SMA50 confirment un retournement."),
+            new("Confirm fort: au moins 3 cassures structurelles", 25, confirmedConditionsCount >= 3, "Confiance élevée sur la sortie."),
+            new("Confirm: sur-extension + faiblesse momentum", 35, extensionReversal, "Sortie spéciale sur excès puis retournement.")
         };
     }
 
