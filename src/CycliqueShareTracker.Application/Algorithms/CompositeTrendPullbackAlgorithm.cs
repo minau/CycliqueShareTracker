@@ -25,6 +25,7 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         var previousIndicators = new Queue<ComputedIndicator>();
         var lastBuySignalDate = DateOnly.MinValue;
         var lastSellSignalDate = DateOnly.MinValue;
+        var warningDuration = 0;
 
         foreach (var current in context.Indicators)
         {
@@ -55,8 +56,13 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
             var gateReasons = BuildSellGateReasons(current, previous, parameters, distanceToSma50Pct, histogramDecliningTwoBars);
             var sellConfirmedByGate = gateReasons.Count > 0;
 
-            var sellZone = confirmedSellScore >= parameters.SellScoreThreshold && sellConfirmedByGate;
             var warningActive = parameters.EarlySellEnabled && earlyWarningScore >= parameters.EarlySellWeaknessScoreThreshold;
+            warningDuration = warningActive ? warningDuration + 1 : 0;
+
+            var sellByThresholdGate = confirmedSellScore >= parameters.SellScoreThreshold && sellConfirmedByGate;
+            var sellByEarlyGate = sellConfirmedByGate && confirmedSellScore >= 12;
+            var sellByProgressiveWarning = warningDuration >= 2 && confirmedSellScore >= 10;
+            var sellZone = sellByThresholdGate || sellByEarlyGate || sellByProgressiveWarning;
 
             var buyCooldownOk = IsCooldownCompleted(lastBuySignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
             var sellCooldownOk = IsCooldownCompleted(lastSellSignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
@@ -79,7 +85,11 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                 : "Achat non validé: configuration incomplète ou extension trop élevée sans reprise suffisante.";
 
             var sellReason = sellSignal
-                ? "Sortie confirmée: dégradation validée par gate SELL (momentum/tendance/extension)."
+                ? sellByProgressiveWarning
+                    ? "Sortie progressive: warning persistant puis confirmation minimale du sell score."
+                    : sellByEarlyGate
+                        ? "Sortie anticipée confirmée: gate SELL validé + score confirmé >= 12."
+                        : "Sortie confirmée: dégradation validée par gate SELL (momentum/tendance/extension)."
                 : warningActive
                     ? "Warning SELL: fatigue détectée, sans confirmation suffisante pour sortie ferme."
                     : "Pas de sortie: ni warning fort, ni confirmation baissière.";
@@ -123,6 +133,9 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                     ["sellConfirmedByGate"] = sellConfirmedByGate,
                     ["sellGateReasons"] = gateReasons,
                     ["warningActive"] = warningActive,
+                    ["warningDuration"] = warningDuration,
+                    ["sellByEarlyGate"] = sellByEarlyGate,
+                    ["sellByProgressiveWarning"] = sellByProgressiveWarning,
                     ["buyThreshold"] = parameters.BuyScoreThreshold,
                     ["sellThreshold"] = parameters.SellScoreThreshold,
                     ["buyWeights"] = new Dictionary<string, int>

@@ -38,6 +38,7 @@ public class CompositeTrendPullbackAlgorithmTests
         Assert.False(point.SellSignal);
         Assert.True((int)point.DebugValues["earlyWarningScore"]! >= 20);
         Assert.Equal(false, point.DebugValues["sellConfirmedByGate"]);
+        Assert.Equal(1, point.DebugValues["warningDuration"]);
     }
 
     [Fact]
@@ -59,6 +60,24 @@ public class CompositeTrendPullbackAlgorithmTests
         Assert.NotEmpty(gateReasons);
     }
 
+
+    [Fact]
+    public void ComputeSignals_ShouldSellEarly_WhenGateIsTrueAndConfirmedScoreAtLeast12_EvenIfThresholdIsHigh()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 3, 10), close: 104m, sma50: 100m, sma200: 97m, rsi: 58m, macd: 0.26m, signal: 0.20m, hist: 0.05m, ema12: 103.2m, ema26: 101m, drawdown: -4m),
+            BuildIndicator(new DateOnly(2026, 3, 11), close: 103m, sma50: 100.05m, sma200: 97.1m, rsi: 57m, macd: 0.15m, signal: 0.22m, hist: -0.01m, ema12: 102.8m, ema26: 101.1m, drawdown: -4.5m)
+        };
+
+        var parameters = MetaAlgoParameters.Default with { SellScoreThreshold = 80 };
+        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators, parameters));
+        var point = result.Points[^1];
+
+        Assert.True(point.SellSignal);
+        Assert.Equal(true, point.DebugValues["sellByEarlyGate"]);
+    }
+
     [Fact]
     public void ComputeSignals_ShouldExposeRsiMomentumStateDebug()
     {
@@ -73,6 +92,26 @@ public class CompositeTrendPullbackAlgorithmTests
 
         Assert.Equal("falling", point.DebugValues["rsiMomentumState"]);
         Assert.NotNull(point.DebugValues["confirmedSellScore"]);
+    }
+
+
+    [Fact]
+    public void ComputeSignals_ShouldSellAfterPersistentWarning_WhenConfirmedScoreReaches10()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 5, 10), close: 111m, sma50: 100m, sma200: 96m, rsi: 67m, macd: 0.20m, signal: 0.18m, hist: 0.03m, ema12: 104m, ema26: 101m, drawdown: -3m),
+            BuildIndicator(new DateOnly(2026, 5, 11), close: 110.5m, sma50: 100m, sma200: 96.1m, rsi: 67m, macd: 0.19m, signal: 0.18m, hist: -0.01m, ema12: 104m, ema26: 101.2m, drawdown: -3.2m),
+            BuildIndicator(new DateOnly(2026, 5, 12), close: 110m, sma50: 100m, sma200: 96.2m, rsi: 67m, macd: 0.18m, signal: 0.17m, hist: -0.02m, ema12: 103.9m, ema26: 101.3m, drawdown: -3.5m)
+        };
+
+        var parameters = MetaAlgoParameters.Default with { SellScoreThreshold = 80, StrongExtensionAboveSma50ForSellPct = 10m };
+        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators, parameters));
+        var point = result.Points[^1];
+
+        Assert.True(point.SellSignal);
+        Assert.Equal(true, point.DebugValues["sellByProgressiveWarning"]);
+        Assert.True((int)point.DebugValues["warningDuration"]! >= 2);
     }
 
     [Fact]
