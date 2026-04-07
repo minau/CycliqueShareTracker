@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Models.BacktestAnalysisExport;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace CycliqueShareTracker.Infrastructure.Services;
@@ -9,10 +10,12 @@ namespace CycliqueShareTracker.Infrastructure.Services;
 public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportService
 {
     private readonly ILogger<BacktestAnalysisExportService> _logger;
+    private readonly BacktestExportOptions _options;
 
-    public BacktestAnalysisExportService(ILogger<BacktestAnalysisExportService> logger)
+    public BacktestAnalysisExportService(ILogger<BacktestAnalysisExportService> logger, IOptions<BacktestExportOptions> options)
     {
         _logger = logger;
+        _options = options.Value;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -178,8 +181,12 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
     private string ResolveExportDirectory()
     {
         var configuredDirectory = Environment.GetEnvironmentVariable("BACKTEST_EXPORT_DIRECTORY");
+        var primaryFromConfig = string.IsNullOrWhiteSpace(_options.DirectoryPath)
+            ? "/var/cyclique/exports"
+            : _options.DirectoryPath;
+
         var primaryDirectory = string.IsNullOrWhiteSpace(configuredDirectory)
-            ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "exports"))
+            ? Path.GetFullPath(primaryFromConfig)
             : Path.GetFullPath(configuredDirectory);
 
         try

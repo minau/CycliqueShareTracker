@@ -11,6 +11,7 @@ services:
       - .env
     volumes:
       - dpkeys:/var/cyclique/keys
+      - exports:/var/cyclique/exports
   db:
     image: postgres:16
     container_name: cyclique_db
@@ -33,3 +34,4 @@ services:
 volumes:
   pgdata:
   dpkeys:
+  exports:
