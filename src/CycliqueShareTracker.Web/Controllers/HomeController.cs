@@ -4,6 +4,7 @@ using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Web.Controllers;
 
@@ -15,18 +16,21 @@ public class HomeController : Controller
     private readonly IBacktestService _backtestService;
     private readonly IBacktestAnalysisExportService _backtestAnalysisExportService;
     private readonly ILogger<HomeController> _logger;
+    private readonly BacktestExportOptions _backtestExportOptions;
 
     public HomeController(
         IDashboardService dashboardService,
         IDataSyncService dataSyncService,
         IBacktestService backtestService,
         IBacktestAnalysisExportService backtestAnalysisExportService,
+        IOptions<BacktestExportOptions> backtestExportOptions,
         ILogger<HomeController> logger)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
         _backtestService = backtestService;
         _backtestAnalysisExportService = backtestAnalysisExportService;
+        _backtestExportOptions = backtestExportOptions.Value;
         _logger = logger;
     }
 
@@ -215,6 +219,7 @@ public class HomeController : Controller
                             model.ExecutedAtUtc,
                             cancellationToken);
 
+                        model.AnalysisJsonDownloadUrl = Url.Action(nameof(DownloadBacktestAnalysis), new { filePath = model.AnalysisJsonPath });
                         _logger.LogInformation("Backtest analysis JSON generated at absolute path: {AnalysisJsonPath}", model.AnalysisJsonPath);
                     }
                     catch (Exception exportException)
@@ -237,6 +242,47 @@ public class HomeController : Controller
         }
 
         return View(model);
+    }
+
+
+    [HttpGet]
+    public IActionResult DownloadBacktestAnalysis([FromQuery] string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return BadRequest("Le chemin du fichier est requis.");
+        }
+
+        var fullPath = Path.GetFullPath(filePath);
+        if (!System.IO.File.Exists(fullPath))
+        {
+            _logger.LogWarning("Backtest analysis download requested but file was not found. Path={FilePath}", fullPath);
+            return NotFound("Le fichier JSON n'existe pas.");
+        }
+
+        var exportRoot = ResolveExportRoot();
+        if (!fullPath.StartsWith(exportRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Backtest analysis download blocked for path outside export directory. Path={FilePath}; ExportRoot={ExportRoot}", fullPath, exportRoot);
+            return Forbid();
+        }
+
+        var fileName = Path.GetFileName(fullPath);
+        return PhysicalFile(fullPath, "application/json", fileName);
+    }
+
+    private string ResolveExportRoot()
+    {
+        var envOverride = Environment.GetEnvironmentVariable("BACKTEST_EXPORT_DIRECTORY");
+        var configured = string.IsNullOrWhiteSpace(envOverride)
+            ? _backtestExportOptions.DirectoryPath
+            : envOverride;
+
+        var root = string.IsNullOrWhiteSpace(configured)
+            ? "/var/cyclique/exports"
+            : configured;
+
+        return Path.GetFullPath(root);
     }
 
     [HttpGet]

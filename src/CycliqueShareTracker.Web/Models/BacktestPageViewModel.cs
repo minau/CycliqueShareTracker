@@ -18,5 +18,6 @@ public sealed class BacktestPageViewModel
     public bool HasExecuted { get; set; }
     public DateTime? ExecutedAtUtc { get; set; }
     public string? AnalysisJsonPath { get; set; }
+    public string? AnalysisJsonDownloadUrl { get; set; }
     public string? Error { get; set; }
 }

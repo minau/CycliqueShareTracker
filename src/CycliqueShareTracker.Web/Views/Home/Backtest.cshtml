@@ -69,6 +69,15 @@
         @if (!string.IsNullOrWhiteSpace(Model.AnalysisJsonPath))
         {
             <p><strong>JSON d’analyse :</strong> @Model.AnalysisJsonPath</p>
+            @if (!string.IsNullOrWhiteSpace(Model.AnalysisJsonDownloadUrl))
+            {
+                <p><a href="@Model.AnalysisJsonDownloadUrl">Télécharger le JSON</a></p>
+                <script>
+                    window.setTimeout(function () {
+                        window.location.href = '@Model.AnalysisJsonDownloadUrl';
+                    }, 300);
+                </script>
+            }
         }
     }
 </div>
