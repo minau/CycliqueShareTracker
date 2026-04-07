@@ -16,6 +16,6 @@ public sealed record MetaAlgoParameters
     public decimal MinGapBetweenSma50AndSma200Pct { get; init; } = 0.5m;
     public int MinimumBarsBetweenSameSignal { get; init; } = 3;
     public bool EarlySellEnabled { get; init; } = true;
-    public int EarlySellWeaknessScoreThreshold { get; init; } = 30;
+    public int EarlySellWeaknessScoreThreshold { get; init; } = 20;
     public bool EnableMacdConfirmation { get; init; } = true;
 }

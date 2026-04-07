@@ -37,12 +37,16 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
             var distanceToSma50Pct = ComputeDistanceAboveSma50Pct(current.Close, current.Sma50);
             var smaGapPct = ComputeSmaGapPct(current.Sma50, current.Sma200);
             var histogramDelta = ComputeHistogramDelta(current.MacdHistogram, previous?.MacdHistogram);
+            var histogramDecliningTwoBars = IsHistogramDecliningTwoBars(current, previous, beforePrevious);
 
             var rsiZone = ResolveRsiZone(current.Rsi14);
             var pullbackType = ResolvePullbackType(current.Rsi14);
+            var rsiMomentumState = ResolveRsiMomentumState(previous?.Rsi14, current.Rsi14);
+            var momentumWeakening = histogramDelta.HasValue && histogramDelta.Value < 0m;
+            var rsiPlateau = rsiMomentumState == "flat" && current.Rsi14.HasValue && current.Rsi14.Value >= 60m;
 
             var buyDetails = BuildBuyScoreDetails(current, previous, beforePrevious, parameters, slope, distanceToSma50Pct, smaGapPct, histogramDelta, rsiZone, pullbackType);
-            var sellDetails = BuildSellScoreDetails(current, previous, parameters, slope, distanceToSma50Pct, histogramDelta);
+            var sellDetails = BuildSellScoreDetails(current, previous, parameters, slope, distanceToSma50Pct, histogramDelta, histogramDecliningTwoBars, rsiMomentumState);
 
             var buyScore = CountTriggeredScore(buyDetails);
             var sellScore = CountTriggeredScore(sellDetails);
@@ -55,7 +59,11 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
 
             var buySignal = buyZone && buyCooldownOk;
             var weaknessScore = sellDetails.Where(x => x.Triggered && x.Label.StartsWith("Faiblesse", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Points);
-            var earlySell = parameters.EarlySellEnabled && !sellZone && weaknessScore >= parameters.EarlySellWeaknessScoreThreshold;
+            var earlySellCondition = momentumWeakening || rsiPlateau;
+            var earlySell = parameters.EarlySellEnabled
+                            && !sellZone
+                            && earlySellCondition
+                            && (weaknessScore >= parameters.EarlySellWeaknessScoreThreshold || (momentumWeakening && rsiPlateau));
             var sellSignal = (sellZone || earlySell) && sellCooldownOk;
 
             if (buySignal)
@@ -74,7 +82,7 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
 
             var sellReason = sellSignal
                 ? (earlySell
-                    ? "Sortie anticipée: faiblesse contextuelle confirmée avant bascule complète."
+                    ? "Sortie anticipée: momentum qui faiblit (histogramme/RSI) avant dégradation complète." 
                     : "Sortie validée: affaiblissement trend/momentum ou sur-extension retournée.")
                 : "Pas de sortie: pression vendeuse insuffisante dans le contexte actuel.";
 
@@ -103,10 +111,13 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                     ["signalType"] = signalType,
                     ["rsiZone"] = rsiZone,
                     ["pullbackType"] = pullbackType,
+                    ["momentumWeakening"] = momentumWeakening,
+                    ["rsiMomentumState"] = rsiMomentumState,
                     ["sma50SlopePct"] = slope,
                     ["distanceAboveSma50Pct"] = distanceToSma50Pct,
                     ["smaGapPct"] = smaGapPct,
                     ["histogramDelta"] = histogramDelta,
+                    ["histogramDecliningTwoBars"] = histogramDecliningTwoBars,
                     ["buyThreshold"] = parameters.BuyScoreThreshold,
                     ["sellThreshold"] = parameters.SellScoreThreshold,
                     ["buyWeights"] = new Dictionary<string, int>
@@ -213,16 +224,22 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         MetaAlgoParameters parameters,
         decimal? slope,
         decimal? distanceToSma50Pct,
-        decimal? histogramDelta)
+        decimal? histogramDelta,
+        bool histogramDecliningTwoBars,
+        string rsiMomentumState)
     {
         var bearishMacdCross = WasRecentBearishMacdCross(previous, current);
         var overExtended = distanceToSma50Pct.HasValue && distanceToSma50Pct.Value >= parameters.StrongExtensionAboveSma50ForSellPct;
+        var topDetection = current.Rsi14.HasValue && current.Rsi14.Value > 65m && histogramDelta.HasValue && histogramDelta.Value < 0m;
+        var rsiVigilance = current.Rsi14.HasValue && current.Rsi14.Value >= 60m && current.Rsi14.Value <= 70m;
+        var rsiOverbought = current.Rsi14.HasValue && current.Rsi14.Value > 70m;
 
         var details = new List<ScoreFactorDetail>
         {
-            // Momentum weakness 35
-            new("Faiblesse momentum: histogramme MACD en dégradation", 12, histogramDelta.HasValue && histogramDelta.Value < 0m, "Perte d'accélération du momentum."),
-            new("Faiblesse momentum: MACD line < signal", 12, current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value, "Momentum orienté à la baisse."),
+            // Momentum weakness 35+
+            new("Faiblesse momentum: histogramme MACD en baisse", 20, histogramDelta.HasValue && histogramDelta.Value < 0m, "Perte d'accélération du momentum."),
+            new("Faiblesse momentum: histogramme négatif sur 2 barres", 30, histogramDecliningTwoBars, "Faiblesse persistante sur plusieurs barres."),
+            new("Faiblesse momentum: MACD line < signal", 14, current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value, "Momentum orienté à la baisse."),
             new("Faiblesse momentum: croisement MACD baissier récent", 11, bearishMacdCross, "Retournement baissier validé."),
 
             // Trend deterioration 30
@@ -230,13 +247,15 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
             new($"Dégradation tendance: RSI < {parameters.MinRsiWeaknessForSell}", 8, current.Rsi14.HasValue && current.Rsi14.Value < parameters.MinRsiWeaknessForSell, "Momentum passe sous la neutralité."),
             new("Dégradation tendance: pente SMA50 faible", 8, slope.HasValue && slope.Value <= parameters.MaxFlatSlopeThreshold, "Tendance intermédiaire qui s'aplatit."),
 
-            // Extension 25
-            new("Extension: RSI > 70", 10, current.Rsi14.HasValue && current.Rsi14.Value > 70m, "Surachat avancé."),
+            // Extension / top detection 25+
+            new("RSI vigilance 60-70", 8, rsiVigilance, "Zone de vigilance: momentum haut avec risque de plafonnement."),
+            new("RSI surachat > 70", 14, rsiOverbought, "Zone de surachat avancé."),
             new($"Extension: prix > SMA50 de {parameters.StrongExtensionAboveSma50ForSellPct}%", 10, overExtended, "Extension excessive au-dessus de la tendance intermédiaire."),
             new("Extension + retournement momentum", 5, overExtended && bearishMacdCross, "Combinaison de sur-extension et cassure de momentum."),
+            new("Top detection: RSI > 65 + histogramme en baisse", 25, topDetection, "Signal fort de sommet de cycle potentiel."),
 
             // Early contextual weakness 10
-            new("Faiblesse contextuelle précoce", 10, current.Rsi14.HasValue && current.Rsi14.Value < 55m && histogramDelta.HasValue && histogramDelta.Value < 0m, "Fatigue progressive utilisable pour early sell.")
+            new("Faiblesse contextuelle précoce", 10, (histogramDelta.HasValue && histogramDelta.Value < 0m) || rsiMomentumState == "flat", "Déclencheur précoce sur fatigue momentum ou RSI qui plafonne.")
         };
 
         if (!parameters.EnableMacdConfirmation)
@@ -290,6 +309,32 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         }
 
         return "none";
+    }
+
+    private static string ResolveRsiMomentumState(decimal? previousRsi, decimal? currentRsi)
+    {
+        if (!previousRsi.HasValue || !currentRsi.HasValue)
+        {
+            return "unknown";
+        }
+
+        var delta = currentRsi.Value - previousRsi.Value;
+        if (Math.Abs(delta) <= 0.5m)
+        {
+            return "flat";
+        }
+
+        return delta > 0m ? "rising" : "falling";
+    }
+
+    private static bool IsHistogramDecliningTwoBars(ComputedIndicator current, ComputedIndicator? previous, ComputedIndicator? beforePrevious)
+    {
+        if (!current.MacdHistogram.HasValue || previous?.MacdHistogram.HasValue != true || beforePrevious?.MacdHistogram.HasValue != true)
+        {
+            return false;
+        }
+
+        return current.MacdHistogram.Value < previous.MacdHistogram.Value && previous.MacdHistogram.Value < beforePrevious.MacdHistogram.Value;
     }
 
     private static void DisableMacdBuyRequirements(List<ScoreFactorDetail> details)

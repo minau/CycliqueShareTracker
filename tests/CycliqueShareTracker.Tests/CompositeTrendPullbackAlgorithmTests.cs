@@ -58,19 +58,37 @@ public class CompositeTrendPullbackAlgorithmTests
     }
 
     [Fact]
-    public void ComputeSignals_ShouldTriggerSell_OnMomentumWeakness()
+    public void ComputeSignals_ShouldTriggerSellEarlier_WhenHistogramWeakens()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 3, 1), close: 104m, sma50: 100m, sma200: 97m, rsi: 56m, macd: 0.25m, signal: 0.18m, hist: 0.07m, ema12: 103m, ema26: 101m, drawdown: -4m),
-            BuildIndicator(new DateOnly(2026, 3, 2), close: 101m, sma50: 100.01m, sma200: 97.1m, rsi: 46m, macd: 0.10m, signal: 0.15m, hist: -0.05m, ema12: 100.4m, ema26: 100.9m, drawdown: -6m)
+            BuildIndicator(new DateOnly(2026, 3, 1), close: 104m, sma50: 100m, sma200: 97m, rsi: 66m, macd: 0.30m, signal: 0.22m, hist: 0.08m, ema12: 103.2m, ema26: 101m, drawdown: -4m),
+            BuildIndicator(new DateOnly(2026, 3, 2), close: 103m, sma50: 100.1m, sma200: 97.1m, rsi: 65.8m, macd: 0.25m, signal: 0.23m, hist: 0.02m, ema12: 103m, ema26: 101.2m, drawdown: -4.5m),
+            BuildIndicator(new DateOnly(2026, 3, 3), close: 102m, sma50: 100.15m, sma200: 97.2m, rsi: 65.4m, macd: 0.19m, signal: 0.22m, hist: -0.03m, ema12: 102.7m, ema26: 101.4m, drawdown: -5m)
         };
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
         var point = result.Points[^1];
 
         Assert.True(point.SellSignal);
-        Assert.True(point.SellScore >= 58);
+        Assert.True((bool)point.DebugValues["momentumWeakening"]!);
+        Assert.Equal("flat", point.DebugValues["rsiMomentumState"]);
+    }
+
+    [Fact]
+    public void ComputeSignals_ShouldApplyTopDetectionBonus_WhenRsiAbove65AndHistogramFalls()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 4, 1), close: 108m, sma50: 100m, sma200: 96m, rsi: 69m, macd: 0.30m, signal: 0.24m, hist: 0.06m, ema12: 106m, ema26: 103m, drawdown: -3m),
+            BuildIndicator(new DateOnly(2026, 4, 2), close: 109m, sma50: 100.2m, sma200: 96.2m, rsi: 68m, macd: 0.24m, signal: 0.23m, hist: -0.02m, ema12: 105.3m, ema26: 103.5m, drawdown: -2.5m)
+        };
+
+        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
+        var point = result.Points[^1];
+
+        Assert.True(point.SellSignal);
+        Assert.True(point.SellDetails.Any(x => x.Label.Contains("Top detection") && x.Triggered));
     }
 
     [Fact]
