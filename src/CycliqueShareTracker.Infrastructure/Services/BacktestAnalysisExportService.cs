@@ -122,14 +122,90 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
                     BuildDebugValues(point)));
         }).ToList();
 
+        var orderedBars = (asset.OhlcvBars ?? Array.Empty<PriceBar>())
+            .OrderBy(x => x.Date)
+            .ToList();
+
         return new BacktestAnalysisAssetDto(
             asset.Symbol,
             asset.AssetName,
             candles,
             asset.Signals ?? Array.Empty<BacktestSignal>(),
             asset.Trades,
+            BuildTradeAnalysis(asset.Trades, orderedBars),
             asset.Metrics,
             asset.Error);
+    }
+
+    private static IReadOnlyList<BacktestAnalysisTradeEnvelopeDto> BuildTradeAnalysis(
+        IReadOnlyList<Trade> trades,
+        IReadOnlyList<PriceBar> orderedBars)
+    {
+        if (trades.Count == 0)
+        {
+            return Array.Empty<BacktestAnalysisTradeEnvelopeDto>();
+        }
+
+        return trades
+            .Select(trade => new BacktestAnalysisTradeEnvelopeDto(
+                new BacktestAnalysisTradeDto(
+                    trade.EntryDate,
+                    trade.ExitDate,
+                    trade.EntryPrice,
+                    trade.ExitPrice,
+                    trade.PerformancePercent,
+                    ComputeMaxDrawdownPercent(trade, orderedBars),
+                    ComputeMaxProfitPercent(trade, orderedBars),
+                    trade.DurationDays,
+                    BuildReasonsArray(trade.EntryReason),
+                    BuildReasonsArray(trade.ExitReason))))
+            .ToList();
+    }
+
+    private static decimal ComputeMaxDrawdownPercent(Trade trade, IReadOnlyList<PriceBar> orderedBars)
+    {
+        var tradeBars = orderedBars
+            .Where(x => x.Date >= trade.EntryDate && x.Date <= trade.ExitDate)
+            .ToList();
+
+        if (tradeBars.Count == 0 || trade.EntryPrice == 0m)
+        {
+            return 0m;
+        }
+
+        var worstMove = tradeBars
+            .Select(bar => ((bar.Close / trade.EntryPrice) - 1m) * 100m)
+            .Min();
+
+        return decimal.Round(Math.Abs(Math.Min(worstMove, 0m)), 2);
+    }
+
+    private static decimal ComputeMaxProfitPercent(Trade trade, IReadOnlyList<PriceBar> orderedBars)
+    {
+        var tradeBars = orderedBars
+            .Where(x => x.Date >= trade.EntryDate && x.Date <= trade.ExitDate)
+            .ToList();
+
+        if (tradeBars.Count == 0 || trade.EntryPrice == 0m)
+        {
+            return 0m;
+        }
+
+        var bestMove = tradeBars
+            .Select(bar => ((bar.Close / trade.EntryPrice) - 1m) * 100m)
+            .Max();
+
+        return decimal.Round(Math.Max(bestMove, 0m), 2);
+    }
+
+    private static IReadOnlyList<string> BuildReasonsArray(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return Array.Empty<string>();
+        }
+
+        return new[] { reason };
     }
 
     private static string? ResolveSignalType(AlgorithmSignalPoint? point)

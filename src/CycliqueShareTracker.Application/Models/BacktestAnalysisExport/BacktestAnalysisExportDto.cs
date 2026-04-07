@@ -43,8 +43,24 @@ public sealed record BacktestAnalysisAssetDto(
     IReadOnlyList<BacktestAnalysisCandleDto> Candles,
     IReadOnlyList<BacktestSignal> Signals,
     IReadOnlyList<Trade> Trades,
+    IReadOnlyList<BacktestAnalysisTradeEnvelopeDto> TradeAnalysis,
     BacktestMetrics Metrics,
     string? Error);
+
+public sealed record BacktestAnalysisTradeEnvelopeDto(
+    BacktestAnalysisTradeDto Trade);
+
+public sealed record BacktestAnalysisTradeDto(
+    DateOnly EntryDate,
+    DateOnly ExitDate,
+    decimal EntryPrice,
+    decimal ExitPrice,
+    decimal PnL,
+    decimal MaxDrawdown,
+    decimal MaxProfit,
+    int HoldingDays,
+    IReadOnlyList<string> EntryReasons,
+    IReadOnlyList<string> ExitReasons);
 
 public sealed record BacktestAnalysisCandleDto(
     DateOnly Date,
