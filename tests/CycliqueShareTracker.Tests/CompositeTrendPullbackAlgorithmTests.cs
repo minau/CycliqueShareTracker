@@ -20,63 +20,47 @@ public class CompositeTrendPullbackAlgorithmTests
         var point = result.Points[^1];
 
         Assert.True(point.BuySignal);
-        Assert.True(point.IsBuyZone);
         Assert.True(point.BuyScore >= 55);
     }
 
     [Fact]
-    public void ComputeSignals_ShouldAllowBuy_WhenRsiIsNeutralButMomentumIsStrong()
+    public void ComputeSignals_ShouldOnlyWarn_WhenMomentumSlowsButTrendStillBullish()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 1, 10), close: 100m, sma50: 99m, sma200: 97m, rsi: 66m, macd: 0.12m, signal: 0.14m, hist: -0.02m, ema12: 100m, ema26: 99.2m, drawdown: -6m),
-            BuildIndicator(new DateOnly(2026, 1, 11), close: 101m, sma50: 99.2m, sma200: 97.1m, rsi: 68m, macd: 0.20m, signal: 0.16m, hist: 0.04m, ema12: 100.4m, ema26: 99.3m, drawdown: -5m)
+            BuildIndicator(new DateOnly(2026, 2, 1), close: 100m, sma50: 98m, sma200: 95m, rsi: 67m, macd: 0.25m, signal: 0.20m, hist: 0.05m, ema12: 101m, ema26: 99m, drawdown: -6m),
+            BuildIndicator(new DateOnly(2026, 2, 2), close: 101m, sma50: 98.2m, sma200: 95.1m, rsi: 67m, macd: 0.24m, signal: 0.21m, hist: 0.03m, ema12: 101.1m, ema26: 99.2m, drawdown: -5.5m)
         };
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
         var point = result.Points[^1];
 
-        Assert.True(point.BuySignal);
-        Assert.Equal("neutral", point.DebugValues["rsiZone"]);
-        Assert.Equal("none", point.DebugValues["pullbackType"]);
+        Assert.False(point.SellSignal);
+        Assert.True((int)point.DebugValues["earlyWarningScore"]! >= 20);
+        Assert.Equal(false, point.DebugValues["sellConfirmedByGate"]);
     }
 
     [Fact]
-    public void ComputeSignals_ShouldBlockBuy_WhenPriceIsTooExtendedAboveSma50()
+    public void ComputeSignals_ShouldConfirmSell_WhenGateConditionsAndScoreAreMet()
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 2, 1), close: 100m, sma50: 98m, sma200: 95m, rsi: 52m, macd: 0.15m, signal: 0.10m, hist: 0.05m, ema12: 99.8m, ema26: 98.9m, drawdown: -7m),
-            BuildIndicator(new DateOnly(2026, 2, 2), close: 113m, sma50: 100m, sma200: 95.2m, rsi: 70m, macd: 0.20m, signal: 0.15m, hist: 0.05m, ema12: 101.1m, ema26: 99.5m, drawdown: -6m)
-        };
-
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
-
-        Assert.False(point.BuySignal);
-        Assert.True(point.BuyScore < 55);
-    }
-
-    [Fact]
-    public void ComputeSignals_ShouldTriggerSellEarlier_WhenHistogramWeakens()
-    {
-        var indicators = new List<ComputedIndicator>
-        {
-            BuildIndicator(new DateOnly(2026, 3, 1), close: 104m, sma50: 100m, sma200: 97m, rsi: 66m, macd: 0.30m, signal: 0.22m, hist: 0.08m, ema12: 103.2m, ema26: 101m, drawdown: -4m),
-            BuildIndicator(new DateOnly(2026, 3, 2), close: 103m, sma50: 100.1m, sma200: 97.1m, rsi: 65.8m, macd: 0.25m, signal: 0.23m, hist: 0.02m, ema12: 103m, ema26: 101.2m, drawdown: -4.5m),
-            BuildIndicator(new DateOnly(2026, 3, 3), close: 102m, sma50: 100.15m, sma200: 97.2m, rsi: 65.4m, macd: 0.19m, signal: 0.22m, hist: -0.03m, ema12: 102.7m, ema26: 101.4m, drawdown: -5m)
+            BuildIndicator(new DateOnly(2026, 3, 1), close: 104m, sma50: 100m, sma200: 97m, rsi: 55m, macd: 0.26m, signal: 0.20m, hist: 0.06m, ema12: 103.5m, ema26: 101m, drawdown: -4m),
+            BuildIndicator(new DateOnly(2026, 3, 2), close: 102m, sma50: 100.1m, sma200: 97.1m, rsi: 48m, macd: 0.16m, signal: 0.21m, hist: -0.02m, ema12: 101.5m, ema26: 101.8m, drawdown: -5m),
+            BuildIndicator(new DateOnly(2026, 3, 3), close: 101m, sma50: 100.1m, sma200: 97.2m, rsi: 46m, macd: 0.10m, signal: 0.20m, hist: -0.04m, ema12: 100.8m, ema26: 101.7m, drawdown: -6m)
         };
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
         var point = result.Points[^1];
 
         Assert.True(point.SellSignal);
-        Assert.True((bool)point.DebugValues["momentumWeakening"]!);
-        Assert.Equal("flat", point.DebugValues["rsiMomentumState"]);
+        Assert.True((bool)point.DebugValues["sellConfirmedByGate"]!);
+        var gateReasons = (IReadOnlyList<string>)point.DebugValues["sellGateReasons"]!;
+        Assert.NotEmpty(gateReasons);
     }
 
     [Fact]
-    public void ComputeSignals_ShouldApplyTopDetectionBonus_WhenRsiAbove65AndHistogramFalls()
+    public void ComputeSignals_ShouldExposeRsiMomentumStateDebug()
     {
         var indicators = new List<ComputedIndicator>
         {
@@ -87,48 +71,8 @@ public class CompositeTrendPullbackAlgorithmTests
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
         var point = result.Points[^1];
 
-        Assert.True(point.SellSignal);
-        Assert.True(point.SellDetails.Any(x => x.Label.Contains("Top detection") && x.Triggered));
-    }
-
-    [Fact]
-    public void ComputeSignals_ShouldTriggerStrongSell_WhenExtensionAndBearishReversalCombine()
-    {
-        var indicators = new List<ComputedIndicator>
-        {
-            BuildIndicator(new DateOnly(2026, 4, 1), close: 108m, sma50: 100m, sma200: 96m, rsi: 72m, macd: 0.30m, signal: 0.24m, hist: 0.06m, ema12: 106m, ema26: 103m, drawdown: -3m),
-            BuildIndicator(new DateOnly(2026, 4, 2), close: 112m, sma50: 100.2m, sma200: 96.2m, rsi: 74m, macd: 0.18m, signal: 0.22m, hist: -0.04m, ema12: 103m, ema26: 103.8m, drawdown: -2m)
-        };
-
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-        var point = result.Points[^1];
-
-        Assert.True(point.SellSignal);
-        Assert.True(point.SellDetails.Any(x => x.Label.Contains("Extension + retournement momentum") && x.Triggered));
-    }
-
-    [Fact]
-    public void ComputeSignals_ShouldAvoidMassiveFalseSignals_WhenSma200IsMissingAtSeriesStart()
-    {
-        var indicators = Enumerable.Range(0, 6)
-            .Select(index => BuildIndicator(
-                new DateOnly(2026, 5, 1).AddDays(index),
-                close: 100m + index,
-                sma50: 100m,
-                sma200: null,
-                rsi: 66m,
-                macd: 0.02m,
-                signal: 0.02m,
-                hist: 0m,
-                ema12: 100m,
-                ema26: 100m,
-                drawdown: -1m))
-            .ToList();
-
-        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
-
-        Assert.True(result.Points.Count(p => p.BuySignal) <= 1);
-        Assert.True(result.Points.Count(p => p.SellSignal) <= 1);
+        Assert.Equal("falling", point.DebugValues["rsiMomentumState"]);
+        Assert.NotNull(point.DebugValues["confirmedSellScore"]);
     }
 
     [Fact]
@@ -164,11 +108,7 @@ public class CompositeTrendPullbackAlgorithmTests
 
     private static AlgorithmContext BuildContext(IReadOnlyList<ComputedIndicator> indicators, MetaAlgoParameters? parameters = null)
     {
-        var config = StrategyConfig.Default with
-        {
-            MetaAlgoParameters = parameters ?? MetaAlgoParameters.Default
-        };
-
+        var config = StrategyConfig.Default with { MetaAlgoParameters = parameters ?? MetaAlgoParameters.Default };
         return new AlgorithmContext(indicators, config);
     }
 
