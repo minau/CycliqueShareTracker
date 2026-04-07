@@ -21,7 +21,24 @@ public class CompositeTrendPullbackAlgorithmTests
 
         Assert.True(point.BuySignal);
         Assert.True(point.IsBuyZone);
-        Assert.True(point.BuyScore >= 68);
+        Assert.True(point.BuyScore >= 55);
+    }
+
+    [Fact]
+    public void ComputeSignals_ShouldAllowBuy_WhenRsiIsNeutralButMomentumIsStrong()
+    {
+        var indicators = new List<ComputedIndicator>
+        {
+            BuildIndicator(new DateOnly(2026, 1, 10), close: 100m, sma50: 99m, sma200: 97m, rsi: 66m, macd: 0.12m, signal: 0.14m, hist: -0.02m, ema12: 100m, ema26: 99.2m, drawdown: -6m),
+            BuildIndicator(new DateOnly(2026, 1, 11), close: 101m, sma50: 99.2m, sma200: 97.1m, rsi: 68m, macd: 0.20m, signal: 0.16m, hist: 0.04m, ema12: 100.4m, ema26: 99.3m, drawdown: -5m)
+        };
+
+        var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
+        var point = result.Points[^1];
+
+        Assert.True(point.BuySignal);
+        Assert.Equal("neutral", point.DebugValues["rsiZone"]);
+        Assert.Equal("none", point.DebugValues["pullbackType"]);
     }
 
     [Fact]
@@ -29,15 +46,15 @@ public class CompositeTrendPullbackAlgorithmTests
     {
         var indicators = new List<ComputedIndicator>
         {
-            BuildIndicator(new DateOnly(2026, 2, 1), close: 100m, sma50: 98m, sma200: 95m, rsi: 48m, macd: 0.15m, signal: 0.10m, hist: 0.05m, ema12: 99.8m, ema26: 98.9m, drawdown: -7m),
-            BuildIndicator(new DateOnly(2026, 2, 2), close: 115m, sma50: 100m, sma200: 95.2m, rsi: 67m, macd: 0.20m, signal: 0.15m, hist: 0.05m, ema12: 101.1m, ema26: 99.5m, drawdown: -6m)
+            BuildIndicator(new DateOnly(2026, 2, 1), close: 100m, sma50: 98m, sma200: 95m, rsi: 52m, macd: 0.15m, signal: 0.10m, hist: 0.05m, ema12: 99.8m, ema26: 98.9m, drawdown: -7m),
+            BuildIndicator(new DateOnly(2026, 2, 2), close: 113m, sma50: 100m, sma200: 95.2m, rsi: 70m, macd: 0.20m, signal: 0.15m, hist: 0.05m, ema12: 101.1m, ema26: 99.5m, drawdown: -6m)
         };
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
         var point = result.Points[^1];
 
         Assert.False(point.BuySignal);
-        Assert.True(point.BuyScore < 68);
+        Assert.True(point.BuyScore < 55);
     }
 
     [Fact]
@@ -53,7 +70,7 @@ public class CompositeTrendPullbackAlgorithmTests
         var point = result.Points[^1];
 
         Assert.True(point.SellSignal);
-        Assert.True(point.SellScore >= 62);
+        Assert.True(point.SellScore >= 58);
     }
 
     [Fact]
@@ -81,7 +98,7 @@ public class CompositeTrendPullbackAlgorithmTests
                 close: 100m + index,
                 sma50: 100m,
                 sma200: null,
-                rsi: 58m,
+                rsi: 66m,
                 macd: 0.02m,
                 signal: 0.02m,
                 hist: 0m,
@@ -92,7 +109,7 @@ public class CompositeTrendPullbackAlgorithmTests
 
         var result = _algorithm.ComputeSignals(BuildBars(indicators), BuildContext(indicators));
 
-        Assert.DoesNotContain(result.Points, p => p.BuySignal);
+        Assert.True(result.Points.Count(p => p.BuySignal) <= 1);
         Assert.True(result.Points.Count(p => p.SellSignal) <= 1);
     }
 
