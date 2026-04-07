@@ -1,12 +1,20 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Models.BacktestAnalysisExport;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace CycliqueShareTracker.Infrastructure.Services;
 
 public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportService
 {
+    private readonly ILogger<BacktestAnalysisExportService> _logger;
+
+    public BacktestAnalysisExportService(ILogger<BacktestAnalysisExportService> logger)
+    {
+        _logger = logger;
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true
@@ -19,11 +27,14 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
         CancellationToken cancellationToken = default)
     {
         var generatedAtUtc = DateTime.UtcNow;
-        var exportDirectory = Path.Combine(AppContext.BaseDirectory, "exports");
-        Directory.CreateDirectory(exportDirectory);
-
+        var exportDirectory = ResolveExportDirectory();
         var fileName = BuildFileName(symbolSelection, result.Request.AlgorithmType.ToString(), generatedAtUtc);
-        var fullPath = Path.Combine(exportDirectory, fileName);
+        var fullPath = Path.GetFullPath(Path.Combine(exportDirectory, fileName));
+
+        _logger.LogInformation("Preparing backtest analysis JSON export. Directory={ExportDirectory}; FileName={FileName}; FullPath={FullPath}",
+            exportDirectory,
+            fileName,
+            fullPath);
 
         var strategy = result.Request.StrategyConfig ?? StrategyConfig.Default;
         var dto = new BacktestAnalysisExportDto(
@@ -58,6 +69,8 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
 
         await using var stream = File.Create(fullPath);
         await JsonSerializer.SerializeAsync(stream, dto, JsonOptions, cancellationToken);
+
+        _logger.LogInformation("Backtest analysis JSON export completed. FullPath={FullPath}", fullPath);
 
         return fullPath;
     }
@@ -159,6 +172,31 @@ public sealed class BacktestAnalysisExportService : IBacktestAnalysisExportServi
             ["buyDetails"] = point.BuyDetails,
             ["sellDetails"] = point.SellDetails
         };
+    }
+
+
+    private string ResolveExportDirectory()
+    {
+        var configuredDirectory = Environment.GetEnvironmentVariable("BACKTEST_EXPORT_DIRECTORY");
+        var primaryDirectory = string.IsNullOrWhiteSpace(configuredDirectory)
+            ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "exports"))
+            : Path.GetFullPath(configuredDirectory);
+
+        try
+        {
+            Directory.CreateDirectory(primaryDirectory);
+            return primaryDirectory;
+        }
+        catch (Exception ex)
+        {
+            var fallbackDirectory = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "CycliqueShareTracker", "exports"));
+            Directory.CreateDirectory(fallbackDirectory);
+            _logger.LogWarning(ex,
+                "Failed to create primary export directory {PrimaryDirectory}. Falling back to {FallbackDirectory}",
+                primaryDirectory,
+                fallbackDirectory);
+            return fallbackDirectory;
+        }
     }
 
     private static string BuildFileName(string symbolSelection, string algorithm, DateTime generatedAtUtc)

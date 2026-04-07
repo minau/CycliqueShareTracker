@@ -158,6 +158,7 @@ public class HomeController : Controller
             StartDate = start,
             EndDate = end,
             IncludeMacdInScoring = true,
+            GenerateAnalysisJson = generateAnalysisJson,
             SelectedAlgorithmType = algorithmType.ToString(),
             SelectedAlgorithmName = algorithmType.ToDisplayName(),
             SymbolOptions = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
@@ -177,8 +178,8 @@ public class HomeController : Controller
                     ? trackedAssets.Select(x => x.Symbol).ToList()
                     : new List<string> { model.SelectedSymbol };
 
-                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
-                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType);
+                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}; GenerateAnalysisJson={GenerateAnalysisJson}",
+                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType, model.GenerateAnalysisJson);
 
                 var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
                     model.StartDate,
@@ -206,13 +207,25 @@ public class HomeController : Controller
 
                 if (model.GenerateAnalysisJson)
                 {
-                    model.AnalysisJsonPath = await _backtestAnalysisExportService.ExportAsync(
-                        model.Result,
-                        model.SelectedSymbol,
-                        model.ExecutedAtUtc,
-                        cancellationToken);
+                    try
+                    {
+                        model.AnalysisJsonPath = await _backtestAnalysisExportService.ExportAsync(
+                            model.Result,
+                            model.SelectedSymbol,
+                            model.ExecutedAtUtc,
+                            cancellationToken);
 
-                    _logger.LogInformation("Backtest analysis JSON generated at {AnalysisJsonPath}", model.AnalysisJsonPath);
+                        _logger.LogInformation("Backtest analysis JSON generated at absolute path: {AnalysisJsonPath}", model.AnalysisJsonPath);
+                    }
+                    catch (Exception exportException)
+                    {
+                        _logger.LogError(exportException,
+                            "Backtest analysis JSON export failed. SymbolSelection={SelectedSymbol}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
+                            model.SelectedSymbol,
+                            model.StartDate,
+                            model.EndDate,
+                            algorithmType);
+                    }
                 }
             }
             catch (Exception ex)
