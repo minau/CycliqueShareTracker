@@ -20,7 +20,7 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
     public override AlgorithmResult ComputeSignals(IReadOnlyList<PriceBar> bars, AlgorithmContext context)
     {
         var points = new List<AlgorithmSignalPoint>(context.Indicators.Count);
-        var parameters = context.Config.MetaAlgoParameters;
+        var parameters = context.StrategyConfig?.MetaAlgoParameters ?? MetaAlgoParameters.Default;
 
         var previousIndicators = new Queue<ComputedIndicator>();
         var lastBuySignalDate = DateOnly.MinValue;
