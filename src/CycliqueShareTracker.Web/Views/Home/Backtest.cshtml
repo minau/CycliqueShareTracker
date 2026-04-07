@@ -50,6 +50,11 @@
 
         <input type="hidden" name="includeMacdInScoring" value="true" />
 
+        <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="generateAnalysisJson" value="true" @(Model.GenerateAnalysisJson ? "checked" : null) />
+            Générer JSON d’analyse
+        </label>
+
         <button type="submit">Lancer le backtest</button>
     </form>
 
@@ -61,6 +66,19 @@
     @if (Model.HasExecuted && string.IsNullOrWhiteSpace(Model.Error))
     {
         <p><strong>Backtest exécuté.</strong> @Model.ExecutedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+        @if (!string.IsNullOrWhiteSpace(Model.AnalysisJsonPath))
+        {
+            <p><strong>JSON d’analyse :</strong> @Model.AnalysisJsonPath</p>
+            @if (!string.IsNullOrWhiteSpace(Model.AnalysisJsonDownloadUrl))
+            {
+                <p><a href="@Model.AnalysisJsonDownloadUrl">Télécharger le JSON</a></p>
+                <script>
+                    window.setTimeout(function () {
+                        window.location.href = '@Model.AnalysisJsonDownloadUrl';
+                    }, 300);
+                </script>
+            }
+        }
     }
 </div>
 

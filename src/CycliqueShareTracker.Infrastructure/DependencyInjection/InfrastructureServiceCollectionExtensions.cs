@@ -30,6 +30,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPriceRepository, PriceRepository>();
         services.AddScoped<IIndicatorRepository, IndicatorRepository>();
         services.AddScoped<ISignalRepository, SignalRepository>();
+        services.AddScoped<IBacktestAnalysisExportService, Services.BacktestAnalysisExportService>();
 
         return services;
     }
