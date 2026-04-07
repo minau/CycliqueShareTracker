@@ -59,10 +59,13 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
             var warningActive = parameters.EarlySellEnabled && earlyWarningScore >= parameters.EarlySellWeaknessScoreThreshold;
             warningDuration = warningActive ? warningDuration + 1 : 0;
 
+            var progressiveBonus = warningDuration >= 2 && sellConfirmedByGate ? 3 : 0;
+            confirmedSellScore = Math.Clamp(confirmedSellScore + progressiveBonus, 0, 100);
+
             var sellByThresholdGate = confirmedSellScore >= parameters.SellScoreThreshold && sellConfirmedByGate;
             var sellByEarlyGate = sellConfirmedByGate && confirmedSellScore >= 12;
             var sellByProgressiveWarning = warningDuration >= 2 && confirmedSellScore >= 10;
-            var sellZone = sellByThresholdGate || sellByEarlyGate || sellByProgressiveWarning;
+            var sellZone = sellByThresholdGate || sellByEarlyGate;
 
             var buyCooldownOk = IsCooldownCompleted(lastBuySignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
             var sellCooldownOk = IsCooldownCompleted(lastSellSignalDate, current.Date, parameters.MinimumBarsBetweenSameSignal);
@@ -85,11 +88,9 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                 : "Achat non validé: configuration incomplète ou extension trop élevée sans reprise suffisante.";
 
             var sellReason = sellSignal
-                ? sellByProgressiveWarning
-                    ? "Sortie progressive: warning persistant puis confirmation minimale du sell score."
-                    : sellByEarlyGate
-                        ? "Sortie anticipée confirmée: gate SELL validé + score confirmé >= 12."
-                        : "Sortie confirmée: dégradation validée par gate SELL (momentum/tendance/extension)."
+                ? sellByEarlyGate
+                    ? "Sortie anticipée confirmée: gate SELL validé + score confirmé >= 12."
+                    : "Sortie confirmée: dégradation validée par gate SELL (momentum/tendance/extension)."
                 : warningActive
                     ? "Warning SELL: fatigue détectée, sans confirmation suffisante pour sortie ferme."
                     : "Pas de sortie: ni warning fort, ni confirmation baissière.";
@@ -136,6 +137,7 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
                     ["warningDuration"] = warningDuration,
                     ["sellByEarlyGate"] = sellByEarlyGate,
                     ["sellByProgressiveWarning"] = sellByProgressiveWarning,
+                    ["progressiveBonus"] = progressiveBonus,
                     ["buyThreshold"] = parameters.BuyScoreThreshold,
                     ["sellThreshold"] = parameters.SellScoreThreshold,
                     ["buyWeights"] = new Dictionary<string, int>
@@ -177,34 +179,36 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
     {
         var reasons = new List<string>();
 
-        if (current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value)
+        var emaBroken = current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value;
+        var macdBroken = current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value;
+        var rsiBroken = current.Rsi14.HasValue && current.Rsi14.Value < 50m;
+        var bearishCross = WasRecentBearishMacdCross(previous, current);
+        var strongExtension = distanceToSma50Pct.HasValue && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct;
+        var extensionWithWeakness = strongExtension && histogramDecliningTwoBars && current.Rsi14.HasValue && current.Rsi14.Value > 65m;
+
+        if (emaBroken)
         {
             reasons.Add("EMA12 < EMA26");
         }
 
-        if (current.MacdLine.HasValue && current.MacdSignalLine.HasValue && current.MacdLine.Value < current.MacdSignalLine.Value)
+        if (macdBroken)
         {
             reasons.Add("MACD line < signal line");
         }
 
-        if (histogramDecliningTwoBars)
-        {
-            reasons.Add("Histogramme MACD en baisse sur 2 barres");
-        }
-
-        if (current.Rsi14.HasValue && current.Rsi14.Value < 50m)
+        if (rsiBroken)
         {
             reasons.Add("RSI < 50");
         }
 
-        if (distanceToSma50Pct.HasValue && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct)
-        {
-            reasons.Add("Distance au-dessus SMA50 > seuil fort");
-        }
-
-        if (WasRecentBearishMacdCross(previous, current))
+        if (bearishCross)
         {
             reasons.Add("Croisement MACD baissier récent");
+        }
+
+        if (extensionWithWeakness)
+        {
+            reasons.Add("Sur-extension forte + faiblesse momentum confirmée");
         }
 
         return reasons;
@@ -240,17 +244,16 @@ public sealed class CompositeTrendPullbackAlgorithm : SignalAlgorithmBase
         var emaBroken = current.Ema12.HasValue && current.Ema26.HasValue && current.Ema12.Value < current.Ema26.Value;
         var rsiBroken = current.Rsi14.HasValue && current.Rsi14.Value < 50m;
         var strongExtension = distanceToSma50Pct.HasValue && distanceToSma50Pct.Value > parameters.StrongExtensionAboveSma50ForSellPct;
+        var extensionWithWeakness = strongExtension && histogramDecliningTwoBars && current.Rsi14.HasValue && current.Rsi14.Value > 65m;
 
         return new List<ScoreFactorDetail>
         {
-            new("Confirm: histogramme MACD en baisse persistante (2 barres)", 14, histogramDecliningTwoBars, "Dégradation confirmée du momentum."),
-            new("Confirm: MACD line < signal", 14, macdBelowSignal, "Momentum cassé."),
-            new("Confirm: croisement MACD baissier récent", 14, bearishCross, "Retournement confirmé."),
             new("Confirm: EMA12 < EMA26", 18, emaBroken, "Cassure de tendance court terme."),
-            new("Confirm: RSI < 50", 12, rsiBroken, "Momentum baissier installé."),
-            new("Confirm: extension forte au-dessus SMA50", 10, strongExtension, "Risque de reprise baissière après sur-extension."),
-            new("Confirm: extension + confirmation baissière", 12, strongExtension && (macdBelowSignal || bearishCross), "Sortie validée après excès."),
-            new("Confirm: histogramme < 0 avec MACD < signal", 10, histogramDelta.HasValue && histogramDelta.Value < 0m && macdBelowSignal, "Momentum négatif cohérent.")
+            new("Confirm: MACD line < signal", 16, macdBelowSignal, "Momentum cassé."),
+            new("Confirm: croisement MACD baissier récent", 14, bearishCross, "Retournement confirmé."),
+            new("Confirm: RSI < 50", 14, rsiBroken, "Momentum baissier installé."),
+            new("Confirm: sur-extension + faiblesse momentum persistante", 14, extensionWithWeakness, "Cas robuste de retournement après excès."),
+            new("Confirm: histogramme < 0 avec MACD < signal", 8, histogramDelta.HasValue && histogramDelta.Value < 0m && macdBelowSignal, "Renfort secondaire si momentum négatif cohérent.")
         };
     }
 
