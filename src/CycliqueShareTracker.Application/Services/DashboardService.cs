@@ -10,7 +10,6 @@ public sealed class DashboardService : IDashboardService
     private const int DefaultHistoryDays = 252;
     private readonly IAssetRepository _assetRepository;
     private readonly IPriceRepository _priceRepository;
-    private readonly IIndicatorRepository _indicatorRepository;
     private readonly ISignalAlgorithmRegistry _algorithmRegistry;
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
@@ -19,7 +18,6 @@ public sealed class DashboardService : IDashboardService
     public DashboardService(
         IAssetRepository assetRepository,
         IPriceRepository priceRepository,
-        IIndicatorRepository indicatorRepository,
         ISignalRepository signalRepository,
         ISignalService signalService,
         IExitSignalService exitSignalService,
@@ -30,7 +28,6 @@ public sealed class DashboardService : IDashboardService
     {
         _assetRepository = assetRepository;
         _priceRepository = priceRepository;
-        _indicatorRepository = indicatorRepository;
         _indicatorCalculator = indicatorCalculator;
         _algorithmRegistry = algorithmRegistry;
         _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
@@ -64,16 +61,14 @@ public sealed class DashboardService : IDashboardService
         var trackedAsset = ResolveTrackedAsset(symbol);
         var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         var latestPrice = await _priceRepository.GetLatestAsync(asset.Id, cancellationToken);
-        var latestIndicator = await _indicatorRepository.GetLatestAsync(asset.Id, cancellationToken);
         var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
         var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
-        var recentIndicators = await _indicatorRepository.GetIndicatorsAsync(asset.Id, historyDays, cancellationToken);
-
         var ordered = recentPrices.OrderBy(x => x.Date).ToList();
-        var computedByDate = BuildComputedIndicatorsByDate(recentPrices, recentIndicators);
+        var orderedBars = ordered.Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume)).ToList();
+        var computedList = _indicatorCalculator.Compute(orderedBars);
+        var computedByDate = computedList.ToDictionary(x => x.Date);
         var algorithm = _algorithmRegistry.Get(algorithmType);
-        var computedList = computedByDate.Values.OrderBy(x => x.Date).ToList();
-        var algorithmResult = algorithm.ComputeSignals(ordered.Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume)).ToList(), new AlgorithmContext(computedList));
+        var algorithmResult = algorithm.ComputeSignals(orderedBars, new AlgorithmContext(computedList));
         var pointsByDate = algorithmResult.Points.ToDictionary(p => p.Date);
 
         decimal? dayChange = null;
@@ -83,10 +78,9 @@ public sealed class DashboardService : IDashboardService
             dayChange = ((orderedDesc[0].Close / orderedDesc[1].Close) - 1m) * 100m;
         }
 
-        var indicatorByDate = recentIndicators.ToDictionary(x => x.Date);
         var chartPoints = ordered.Select(price =>
         {
-            indicatorByDate.TryGetValue(price.Date, out var indicator);
+            computedByDate.TryGetValue(price.Date, out var indicator);
             pointsByDate.TryGetValue(price.Date, out var point);
             point ??= new AlgorithmSignalPoint(price.Date, false, false, false, false, 0, 0, null, "N/A", "N/A", Array.Empty<ScoreFactorDetail>(), Array.Empty<ScoreFactorDetail>());
 
@@ -102,6 +96,10 @@ public sealed class DashboardService : IDashboardService
                 indicator?.MacdLine,
                 indicator?.MacdSignalLine,
                 indicator?.MacdHistogram,
+                indicator?.BollingerMiddle,
+                indicator?.BollingerUpper,
+                indicator?.BollingerLower,
+                indicator?.ParabolicSar,
                 point.BuyScore,
                 point.BuyReason,
                 point.BuyDetails,
@@ -121,6 +119,7 @@ public sealed class DashboardService : IDashboardService
         {
             pointsByDate.TryGetValue(latestPrice.Date, out latestSignalPoint);
         }
+        var latestComputed = latestPrice is null ? null : computedList.FirstOrDefault(x => x.Date == latestPrice.Date);
 
         return new DashboardSnapshot(
             asset.Symbol,
@@ -128,15 +127,15 @@ public sealed class DashboardService : IDashboardService
             latestPrice?.Date,
             latestPrice?.Close,
             dayChange,
-            latestIndicator?.Sma50,
-            latestIndicator?.Sma200,
-            latestIndicator?.Ema12,
-            latestIndicator?.Ema26,
-            latestIndicator?.Rsi14,
-            latestIndicator?.Drawdown52WeeksPercent,
-            latestIndicator?.MacdLine,
-            latestIndicator?.MacdSignalLine,
-            latestIndicator?.MacdHistogram,
+            latestComputed?.Sma50,
+            latestComputed?.Sma200,
+            latestComputed?.Ema12,
+            latestComputed?.Ema26,
+            latestComputed?.Rsi14,
+            latestComputed?.Drawdown52WeeksPercent,
+            latestComputed?.MacdLine,
+            latestComputed?.MacdSignalLine,
+            latestComputed?.MacdHistogram,
             latestSignalPoint?.BuyScore,
             latestSignalPoint?.IsBuyZone == true ? SignalLabel.BuyZone : SignalLabel.Watch,
             latestSignalPoint?.BuyReason,
@@ -146,7 +145,7 @@ public sealed class DashboardService : IDashboardService
             latestSignalPoint?.SellReason,
             latestSignalPoint?.SellDetails ?? Array.Empty<ScoreFactorDetail>(),
             chartPoints,
-            ordered.Select(p => new PriceBar(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume)).ToList(),
+            orderedBars,
             algorithmType,
             algorithm.DisplayName);
     }
@@ -204,42 +203,4 @@ public sealed class DashboardService : IDashboardService
             .ToList();
     }
 
-    private static Dictionary<DateOnly, ComputedIndicator> BuildComputedIndicatorsByDate(
-        IReadOnlyList<Domain.Entities.DailyPrice> prices,
-        IReadOnlyList<Domain.Entities.DailyIndicator> indicators)
-    {
-        var indicatorByDate = indicators.ToDictionary(x => x.Date);
-        var ordered = prices.OrderBy(x => x.Date).ToList();
-        var result = new Dictionary<DateOnly, ComputedIndicator>(ordered.Count);
-
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            var current = ordered[i];
-            indicatorByDate.TryGetValue(current.Date, out var indicator);
-            decimal? previousClose = i > 0 ? ordered[i - 1].Close : null;
-            decimal? previousMacdHistogram = null;
-            if (i > 0)
-            {
-                indicatorByDate.TryGetValue(ordered[i - 1].Date, out var previousIndicator);
-                previousMacdHistogram = previousIndicator?.MacdHistogram;
-            }
-
-            result[current.Date] = new ComputedIndicator(
-                current.Date,
-                indicator?.Sma50,
-                indicator?.Sma200,
-                indicator?.Rsi14,
-                indicator?.Drawdown52WeeksPercent,
-                current.Close,
-                previousClose,
-                indicator?.MacdLine,
-                indicator?.MacdSignalLine,
-                indicator?.MacdHistogram,
-                previousMacdHistogram,
-                indicator?.Ema12,
-                indicator?.Ema26);
-        }
-
-        return result;
-    }
 }

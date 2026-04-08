@@ -13,6 +13,10 @@ public sealed class DashboardChartPointViewModel
     public decimal? MacdLine { get; init; }
     public decimal? MacdSignalLine { get; init; }
     public decimal? MacdHistogram { get; init; }
+    public decimal? BollingerMiddle { get; init; }
+    public decimal? BollingerUpper { get; init; }
+    public decimal? BollingerLower { get; init; }
+    public decimal? ParabolicSar { get; init; }
     public int? EntryScore { get; init; }
     public string EntryPrimaryReason { get; init; } = "N/A";
     public IReadOnlyList<SignalScoreFactorViewModel> EntryScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();

@@ -36,7 +36,6 @@ public sealed class DashboardServiceTests
         return new DashboardService(
             new FakeAssetRepository(),
             priceRepository,
-            new FakeIndicatorRepository(),
             new FakeSignalRepository(),
             new SignalService(),
             new ExitSignalService(),
@@ -110,21 +109,6 @@ public sealed class DashboardServiceTests
 
         public Task<IReadOnlyList<DailyPrice>> GetPricesInRangeAsync(int assetId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken = default)
             => GetPricesAsync(assetId, 500, cancellationToken);
-    }
-
-    private sealed class FakeIndicatorRepository : IIndicatorRepository
-    {
-        public Task UpsertIndicatorsAsync(int assetId, IReadOnlyList<DailyIndicator> indicators, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<DailyIndicator?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default)
-            => Task.FromResult<DailyIndicator?>(new DailyIndicator { AssetId = 1, Date = new DateOnly(2026,4,2), Sma50 = 10, Sma200 = 9, Ema12 = 10, Ema26 = 9, Rsi14 = 45 });
-
-        public Task<IReadOnlyList<DailyIndicator>> GetIndicatorsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<DailyIndicator>>(new[]
-            {
-                new DailyIndicator { AssetId = 1, Date = new DateOnly(2026,4,1), Sma50 = 9, Sma200 = 8, Ema12 = 9, Ema26 = 8, Rsi14 = 44 },
-                new DailyIndicator { AssetId = 1, Date = new DateOnly(2026,4,2), Sma50 = 10, Sma200 = 9, Ema12 = 10, Ema26 = 9, Rsi14 = 45 }
-            });
     }
 
     private sealed class FakeSignalRepository : ISignalRepository
