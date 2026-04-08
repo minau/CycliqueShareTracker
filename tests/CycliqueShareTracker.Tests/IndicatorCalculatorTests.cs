@@ -138,4 +138,74 @@ public class IndicatorCalculatorTests
         Assert.Equal(13.5m, computed[25].Ema26);
         Assert.Null(computed[24].Ema26);
     }
+
+    [Fact]
+    public void ComputeBollingerBands_ShouldReturnSameLength_AndNullUntilWindowIsReady()
+    {
+        var calculator = new IndicatorCalculator();
+        var start = new DateOnly(2025, 1, 1);
+        var bars = new List<PriceBar>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var close = 100m + i;
+            bars.Add(new PriceBar(start.AddDays(i), close, close + 1m, close - 1m, close, 1_000));
+        }
+
+        var bands = calculator.ComputeBollingerBands(bars);
+
+        Assert.Equal(bars.Count, bands.Count);
+        Assert.All(bands, point => Assert.Null(point.Middle));
+        Assert.All(bands, point => Assert.Null(point.Upper));
+        Assert.All(bands, point => Assert.Null(point.Lower));
+        Assert.All(bands, point => Assert.Null(point.StdDev));
+    }
+
+    [Fact]
+    public void ComputeBollingerBands_ShouldComputeExpectedFirstValue_WhenPeriodReached()
+    {
+        var calculator = new IndicatorCalculator();
+        var start = new DateOnly(2025, 1, 1);
+        var bars = new List<PriceBar>();
+
+        for (var i = 1; i <= 20; i++)
+        {
+            var close = i;
+            bars.Add(new PriceBar(start.AddDays(i - 1), close, close, close, close, 100));
+        }
+
+        var bands = calculator.ComputeBollingerBands(bars);
+        var firstComputed = bands[19];
+
+        Assert.Equal(10.5m, firstComputed.Middle);
+        Assert.Equal(5.7663m, firstComputed.StdDev);
+        Assert.Equal(22.0326m, firstComputed.Upper);
+        Assert.Equal(-1.0326m, firstComputed.Lower);
+    }
+
+    [Fact]
+    public void ComputeParabolicSar_AndEnrich_ShouldHandleShortSeries_AndReturnPerCandleOutput()
+    {
+        var calculator = new IndicatorCalculator();
+        var start = new DateOnly(2025, 1, 1);
+        var bars = new List<PriceBar>
+        {
+            new(start, 10m, 11m, 9m, 10.5m, 100),
+            new(start.AddDays(1), 10.5m, 11.5m, 10m, 11m, 100),
+            new(start.AddDays(2), 11m, 12m, 10.5m, 11.4m, 100),
+            new(start.AddDays(3), 11.2m, 12.2m, 10.8m, 11.8m, 100)
+        };
+
+        var sar = calculator.ComputeParabolicSar(bars);
+        var enriched = calculator.EnrichWithTechnicalIndicators(bars);
+
+        Assert.Equal(bars.Count, sar.Count);
+        Assert.Null(sar[0].Sar);
+        Assert.True(sar[1].Sar.HasValue);
+        Assert.True(sar[1].IsUpTrend.HasValue);
+        Assert.Equal(bars.Count, enriched.Count);
+        Assert.Equal(bars[2].Date, enriched[2].Price.Date);
+        Assert.Equal(sar[2].Sar, enriched[2].ParabolicSar.Sar);
+        Assert.Equal(enriched[3].BollingerBands.Middle, enriched[3].Indicator.BollingerMiddle);
+    }
 }

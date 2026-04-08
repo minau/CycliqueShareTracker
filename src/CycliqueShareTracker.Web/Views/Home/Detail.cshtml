@@ -88,7 +88,7 @@
 
 <section class="card">
     <div class="section-header">
-        <h3>Bougies & tendances (SMA50 / SMA200)</h3>
+        <h3>Bougies & tendances (SMA50 / SMA200 / Bollinger / Parabolic SAR)</h3>
         <div class="section-header-links">
             <a asp-controller="Home" asp-action="SignalHistory" asp-route-symbol="@Model.AssetSymbol" asp-route-algorithmType="@Model.ActiveAlgorithmType">Voir l'historique des signaux</a>
             <a asp-controller="Home" asp-action="Index" asp-route-algorithmType="@Model.ActiveAlgorithmType">Retour watchlist</a>
@@ -156,6 +156,10 @@
         const macdLineData = points.map(x => x.MacdLine === null ? null : Number(x.MacdLine));
         const macdSignalData = points.map(x => x.MacdSignalLine === null ? null : Number(x.MacdSignalLine));
         const macdHistogramData = points.map(x => x.MacdHistogram === null ? null : Number(x.MacdHistogram));
+        const bollingerMiddleData = points.map(x => x.BollingerMiddle === null ? null : Number(x.BollingerMiddle));
+        const bollingerUpperData = points.map(x => x.BollingerUpper === null ? null : Number(x.BollingerUpper));
+        const bollingerLowerData = points.map(x => x.BollingerLower === null ? null : Number(x.BollingerLower));
+        const parabolicSarData = points.map(x => x.ParabolicSar === null ? null : Number(x.ParabolicSar));
         const macdHistogramColors = macdHistogramData.map(value => {
             if (value === null) {
                 return '#9ca3af';
@@ -216,7 +220,10 @@
                     toFiniteNumberOrNull(points[i].Open),
                     toFiniteNumberOrNull(points[i].Close),
                     toFiniteNumberOrNull(points[i].Sma50),
-                    toFiniteNumberOrNull(points[i].Sma200)
+                    toFiniteNumberOrNull(points[i].Sma200),
+                    toFiniteNumberOrNull(points[i].BollingerUpper),
+                    toFiniteNumberOrNull(points[i].BollingerLower),
+                    toFiniteNumberOrNull(points[i].ParabolicSar)
                 ];
 
                 for (const value of candidateValues) {
@@ -403,6 +410,53 @@
                         spanGaps: true,
                         tension: 0.15,
                         order: 0
+                    },
+                    {
+                        label: 'Bollinger Middle',
+                        type: 'line',
+                        data: bollingerMiddleData,
+                        borderColor: '#0f766e',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.15,
+                        order: 0
+                    },
+                    {
+                        label: 'Bollinger Upper',
+                        type: 'line',
+                        data: bollingerUpperData,
+                        borderColor: '#0891b2',
+                        borderWidth: 1,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.1,
+                        order: 0
+                    },
+                    {
+                        label: 'Bollinger Lower',
+                        type: 'line',
+                        data: bollingerLowerData,
+                        borderColor: '#0891b2',
+                        borderWidth: 1,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        spanGaps: true,
+                        tension: 0.1,
+                        order: 0
+                    },
+                    {
+                        label: 'Parabolic SAR',
+                        type: 'line',
+                        data: parabolicSarData,
+                        showLine: false,
+                        pointStyle: 'crossRot',
+                        pointRadius: 4,
+                        pointHoverRadius: 5,
+                        backgroundColor: '#be123c',
+                        borderColor: '#be123c',
+                        order: 3
                     },
                     {
                         label: 'BUY ZONE',
