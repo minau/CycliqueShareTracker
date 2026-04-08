@@ -186,7 +186,6 @@ Le code prépare l'ajout futur de:
 - multiples actifs
 - multiples providers
 - alertes (email / Telegram)
-- backtest
 - stratégies supplémentaires
 
 Sans ajouter de complexité inutile dans ce MVP.

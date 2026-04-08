@@ -16,7 +16,6 @@ builder.Services.Configure<WatchlistOptions>(builder.Configuration.GetSection(Wa
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection(DashboardOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
-builder.Services.Configure<BacktestExportOptions>(builder.Configuration.GetSection(BacktestExportOptions.SectionName));
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/var/cyclique/keys";
 builder.Services
@@ -38,8 +37,6 @@ builder.Services.AddScoped<ISignalService, SignalService>();
 builder.Services.AddScoped<IExitSignalService, ExitSignalService>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
-builder.Services.AddScoped<IBacktestEngine, BacktestEngine>();
-builder.Services.AddScoped<IBacktestService, BacktestService>();
 
 builder.Services.AddHostedService<DailyUpdateBackgroundService>();
 
