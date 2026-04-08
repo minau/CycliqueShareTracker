@@ -1,5 +1,3 @@
-using CycliqueShareTracker.Domain.Enums;
-
 namespace CycliqueShareTracker.Application.Models;
 
 public sealed record DashboardSnapshot(
@@ -17,14 +15,6 @@ public sealed record DashboardSnapshot(
     decimal? MacdLine,
     decimal? MacdSignalLine,
     decimal? MacdHistogram,
-    int? Score,
-    SignalLabel? SignalLabel,
-    string? EntryPrimaryReason,
-    IReadOnlyList<ScoreFactorDetail> EntryScoreFactors,
-    int? ExitScore,
-    ExitSignalLabel? ExitSignalLabel,
-    string? ExitPrimaryReason,
-    IReadOnlyList<ScoreFactorDetail> ExitScoreFactors,
     IReadOnlyList<DashboardChartPoint> ChartPoints,
     IReadOnlyList<PriceBar> RecentPrices,
     AlgorithmType AlgorithmType,

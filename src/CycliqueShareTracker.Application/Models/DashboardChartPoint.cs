@@ -1,5 +1,3 @@
-using CycliqueShareTracker.Domain.Enums;
-
 namespace CycliqueShareTracker.Application.Models;
 
 public sealed record DashboardChartPoint(
@@ -17,16 +15,4 @@ public sealed record DashboardChartPoint(
     decimal? BollingerMiddle,
     decimal? BollingerUpper,
     decimal? BollingerLower,
-    decimal? ParabolicSar,
-    int? EntryScore,
-    string? EntryPrimaryReason,
-    IReadOnlyList<ScoreFactorDetail> EntryScoreFactors,
-    SignalLabel? SignalLabel,
-    int? ExitScore,
-    string? ExitPrimaryReason,
-    IReadOnlyList<ScoreFactorDetail> ExitScoreFactors,
-    ExitSignalLabel? ExitSignalLabel,
-    bool IsBuyZone,
-    bool IsSellZone,
-    bool BuySignal,
-    bool SellSignal);
+    decimal? ParabolicSar);

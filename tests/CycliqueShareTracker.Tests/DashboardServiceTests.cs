@@ -2,7 +2,6 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Entities;
-using CycliqueShareTracker.Domain.Enums;
 using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Tests;
@@ -36,9 +35,6 @@ public sealed class DashboardServiceTests
         return new DashboardService(
             new FakeAssetRepository(),
             priceRepository,
-            new FakeSignalRepository(),
-            new SignalService(),
-            new ExitSignalService(),
             new IndicatorCalculator(),
             new FakeAlgorithmRegistry(),
             Options.Create(new WatchlistOptions
@@ -64,22 +60,7 @@ public sealed class DashboardServiceTests
         public string DisplayName => "Test Algo";
 
         public AlgorithmResult ComputeSignals(IReadOnlyList<PriceBar> bars, AlgorithmContext context)
-        {
-            var points = bars.Select(b => new AlgorithmSignalPoint(
-                b.Date,
-                true,
-                false,
-                false,
-                false,
-                55,
-                10,
-                0.55m,
-                "buy",
-                "sell",
-                new[] { new ScoreFactorDetail("factor", 10, true, "desc") },
-                new[] { new ScoreFactorDetail("factor", 5, true, "desc") })).ToList();
-            return new AlgorithmResult(AlgorithmType, DisplayName, points);
-        }
+            => new(AlgorithmType, DisplayName, Array.Empty<AlgorithmSignalPoint>());
     }
 
     private sealed class FakeAssetRepository : IAssetRepository
@@ -109,13 +90,5 @@ public sealed class DashboardServiceTests
 
         public Task<IReadOnlyList<DailyPrice>> GetPricesInRangeAsync(int assetId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken = default)
             => GetPricesAsync(assetId, 500, cancellationToken);
-    }
-
-    private sealed class FakeSignalRepository : ISignalRepository
-    {
-        public Task UpsertSignalsAsync(int assetId, IReadOnlyList<DailySignal> signals, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<DailySignal?> GetLatestAsync(int assetId, CancellationToken cancellationToken = default) => Task.FromResult<DailySignal?>(null);
-        public Task<IReadOnlyList<DailySignal>> GetSignalsAsync(int assetId, int maxRows, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<DailySignal>>(Array.Empty<DailySignal>());
     }
 }

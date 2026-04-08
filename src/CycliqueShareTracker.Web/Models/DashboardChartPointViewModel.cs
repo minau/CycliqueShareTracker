@@ -17,14 +17,4 @@ public sealed class DashboardChartPointViewModel
     public decimal? BollingerUpper { get; init; }
     public decimal? BollingerLower { get; init; }
     public decimal? ParabolicSar { get; init; }
-    public int? EntryScore { get; init; }
-    public string EntryPrimaryReason { get; init; } = "N/A";
-    public IReadOnlyList<SignalScoreFactorViewModel> EntryScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
-    public bool IsBuyZone { get; init; }
-    public bool BuySignal { get; init; }
-    public int? ExitScore { get; init; }
-    public string ExitPrimaryReason { get; init; } = "N/A";
-    public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
-    public bool IsSellZone { get; init; }
-    public bool SellSignal { get; init; }
 }

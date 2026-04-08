@@ -2,13 +2,9 @@ namespace CycliqueShareTracker.Web.Models;
 
 public sealed class WatchlistViewModel
 {
-    public bool IncludeMacdInScoring { get; init; } = true;
     public string ActiveAlgorithmType { get; init; } = "RsiMeanReversion";
     public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
-    public string SortBy { get; init; } = "buy";
-    public string Filter { get; init; } = "all";
-    public string? TopBuySymbol { get; init; }
-    public string? TopSellSymbol { get; init; }
+    public string SortBy { get; init; } = "ticker";
     public IReadOnlyList<WatchlistItemViewModel> Items { get; init; } = Array.Empty<WatchlistItemViewModel>();
 }
 
@@ -22,9 +18,5 @@ public sealed class WatchlistItemViewModel
     public decimal? Sma200 { get; init; }
     public decimal? Rsi14 { get; init; }
     public decimal? Drawdown52WeeksPercent { get; init; }
-    public int? BuyScore { get; init; }
-    public int? SellScore { get; init; }
-    public string Status { get; init; } = "Neutral";
-    public string PrimaryReason { get; init; } = "N/A";
     public string? Error { get; init; }
 }
