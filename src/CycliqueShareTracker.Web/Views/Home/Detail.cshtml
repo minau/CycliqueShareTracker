@@ -12,7 +12,6 @@
     <div class="card">
         <h2>@Model.AssetName (@Model.AssetSymbol)</h2>
         <p>Secteur: @Model.AssetSector</p>
-        <p>Algorithme actif: <strong>@Model.ActiveAlgorithmName</strong></p>
         <p>Dernière mise à jour: @Model.LastUpdateDate</p>
         <p>Dernier prix: @(Model.LastClose?.ToString("F2") ?? "N/A")</p>
         <p>Variation jour: @(Model.DayChangePercent?.ToString("F2") ?? "N/A")%</p>
@@ -34,34 +33,9 @@
     </div>
 </section>
 
-<section class="card">
-    <form method="get" asp-action="Detail">
-        <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
-        <label>
-            Algorithme actif
-            <select name="algorithmType" onchange="this.form.submit();">
-                @foreach (var algo in Enum.GetNames(typeof(CycliqueShareTracker.Application.Models.AlgorithmType)))
-                {
-                    if (algo == Model.ActiveAlgorithmType)
-                    {
-                        <option value="@algo" selected>@algo</option>
-                    }
-                    else
-                    {
-                        <option value="@algo">@algo</option>
-                    }
-                }
-            </select>
-        </label>
-        <label>
-            <strong>Algorithme:</strong> @Model.ActiveAlgorithmName
-        </label>
-    </form>
-</section>
 
 <form asp-action="Refresh" method="post">
     @Html.AntiForgeryToken()
-    <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
     <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
     <button type="submit">Lancer une mise à jour manuelle</button>
 </form>
@@ -70,8 +44,8 @@
     <div class="section-header">
         <h3>Bougies & tendances (SMA50 / SMA200 / Bollinger / Parabolic SAR)</h3>
         <div class="section-header-links">
-            <a asp-controller="Home" asp-action="Index" asp-route-algorithmType="@Model.ActiveAlgorithmType">Retour watchlist</a>
-            <a asp-controller="Home" asp-action="Documentation" asp-route-algorithmType="@Model.ActiveAlgorithmType">Lire la documentation</a>
+            <a asp-controller="Home" asp-action="Index">Retour watchlist</a>
+            <a asp-controller="Home" asp-action="Documentation">Lire la documentation</a>
         </div>
     </div>
     <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
