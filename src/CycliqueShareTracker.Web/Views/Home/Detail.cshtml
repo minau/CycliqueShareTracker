@@ -19,26 +19,6 @@
     </div>
 
     <div class="card">
-        <h3>Signal d'entrée</h3>
-        <div class="signal-tooltip">
-            <p class="signal signal-trigger" tabindex="0">@Model.Signal</p>
-            <partial name="_SignalTooltip" model="Model.EntryTooltip" />
-        </div>
-        <p>Score: @(Model.Score?.ToString() ?? "N/A") / 100</p>
-    </div>
-
-
-    <div class="card">
-        <h3>Signal de sortie</h3>
-        <div class="signal-tooltip">
-            <p class="signal signal-trigger" tabindex="0">@Model.ExitSignal</p>
-            <partial name="_SignalTooltip" model="Model.ExitTooltip" />
-        </div>
-        <p>Exit score: @(Model.ExitScore?.ToString() ?? "N/A") / 100</p>
-        <p>Raison principale: @Model.ExitPrimaryReason</p>
-    </div>
-
-    <div class="card">
         <h3>Indicateurs</h3>
         <ul>
             <li>SMA50: @(Model.Sma50?.ToString("F2") ?? "N/A")</li>
@@ -90,7 +70,6 @@
     <div class="section-header">
         <h3>Bougies & tendances (SMA50 / SMA200 / Bollinger / Parabolic SAR)</h3>
         <div class="section-header-links">
-            <a asp-controller="Home" asp-action="SignalHistory" asp-route-symbol="@Model.AssetSymbol" asp-route-algorithmType="@Model.ActiveAlgorithmType">Voir l'historique des signaux</a>
             <a asp-controller="Home" asp-action="Index" asp-route-algorithmType="@Model.ActiveAlgorithmType">Retour watchlist</a>
             <a asp-controller="Home" asp-action="Documentation" asp-route-algorithmType="@Model.ActiveAlgorithmType">Lire la documentation</a>
         </div>
@@ -458,32 +437,7 @@
                         borderColor: '#be123c',
                         order: 3
                     },
-                    {
-                        label: 'BUY ZONE',
-                        type: 'line',
-                        data: points.map(x => x.IsBuyZone ? Number(x.Close) : null),
-                        showLine: false,
-                        pointRadius: 4,
-                        pointHoverRadius: 5,
-                        backgroundColor: '#7c3aed',
-                        borderColor: '#7c3aed',
-                        borderWidth: 1,
-                        order: -10
-                    },
-                    {
-                        label: 'SELL ZONE',
-                        type: 'line',
-                        data: points.map(x => x.IsSellZone ? Number(x.Close) : null),
-                        showLine: false,
-                        pointStyle: 'triangle',
-                        pointRadius: 6,
-                        pointHoverRadius: 7,
-                        backgroundColor: '#f59e0b',
-                        borderColor: '#f59e0b',
-                        borderWidth: 1,
-                        order: -10
-                    }
-                ]
+                    ]
             },
             options: {
                 maintainAspectRatio: false,
@@ -496,26 +450,6 @@
                                 const point = points[context.dataIndex];
                                 if (!point) {
                                     return context.formattedValue;
-                                }
-
-                                if (context.dataset.label === 'BUY ZONE' && point.IsBuyZone) {
-                                    const lines = [`BUY ZONE - score: ${point.EntryScore ?? 'N/A'}/100`];
-                                    (point.EntryScoreFactors ?? []).forEach(f => {
-                                        const marker = f.Triggered ? '✓' : '×';
-                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
-                                    });
-                                    lines.push(`Raison: ${point.EntryPrimaryReason ?? 'N/A'}`);
-                                    return lines;
-                                }
-
-                                if (context.dataset.label === 'SELL ZONE' && point.IsSellZone) {
-                                    const lines = [`SELL ZONE - score: ${point.ExitScore ?? 'N/A'}/100`];
-                                    (point.ExitScoreFactors ?? []).forEach(f => {
-                                        const marker = f.Triggered ? '✓' : '×';
-                                        lines.push(`${marker} +${f.Points} ${f.Label}`);
-                                    });
-                                    lines.push(`Raison: ${point.ExitPrimaryReason ?? 'N/A'}`);
-                                    return lines;
                                 }
 
                                 return `${context.dataset.label}: ${context.formattedValue}`;

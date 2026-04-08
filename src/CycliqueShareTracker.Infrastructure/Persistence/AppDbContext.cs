@@ -12,7 +12,6 @@ public class AppDbContext : DbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<DailyPrice> DailyPrices => Set<DailyPrice>();
     public DbSet<DailyIndicator> DailyIndicators => Set<DailyIndicator>();
-    public DbSet<DailySignal> DailySignals => Set<DailySignal>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,13 +44,6 @@ public class AppDbContext : DbContext
             entity.Property(x => x.MacdLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdSignalLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdHistogram).HasColumnType("numeric(18,4)");
-        });
-
-        modelBuilder.Entity<DailySignal>(entity =>
-        {
-            entity.HasIndex(x => new { x.AssetId, x.Date }).IsUnique();
-            entity.Property(x => x.Explanation).HasMaxLength(512);
-            entity.Property(x => x.ExitPrimaryReason).HasMaxLength(512);
         });
     }
 }

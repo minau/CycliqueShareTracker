@@ -1,202 +1,25 @@
 @model bool
 
-@{
-    var includeMacdInScoring = Model;
-}
-
-<section class="card doc-hero" id="introduction">
-    <h2>Documentation & glossaire - CycliqueShareTracker</h2>
+<section class="card">
+    <h2>Documentation technique</h2>
     <p>
-        Cette page explique les indicateurs affichés dans l'application, la logique de calcul des scores
-        <strong>Buy zone</strong> et <strong>Sell zone</strong>, ainsi que les notions techniques utilisées pour interpréter les signaux.
+        Cette page décrit les indicateurs techniques utilisés dans l'application et la manière de lire les graphiques.
     </p>
-    <p>
-        L'objectif du produit est d'identifier des zones potentiellement intéressantes sur une action cyclique,
-        avec une approche explicable et déterministe. Les scores sont des aides à la décision, pas des garanties.
-    </p>
-    <p class="doc-note">
-        Dernier mode de calcul sélectionné: <strong>@(includeMacdInScoring ? "MACD activé" : "MACD désactivé")</strong>.
-    </p>
-</section>
 
-<section class="card" id="sommaire">
-    <h3>Table des matières</h3>
-    <div class="doc-toc">
-        <a href="#introduction">1. Introduction</a>
-        <a href="#indicateurs">2. Les indicateurs</a>
-        <a href="#scoring">3. Logique Buy zone / Sell zone</a>
-        <a href="#macd-option">4. MACD optionnel</a>
-        <a href="#glossaire">5. Mini glossaire finance & chartisme</a>
-        <a href="#interpretation">6. Comment interpréter les signaux</a>
-        <a href="#faq">7. FAQ rapide</a>
-        <a href="#avertissement">8. Avertissement</a>
-    </div>
-</section>
-
-<section class="card" id="indicateurs">
-    <h3>Les indicateurs utilisés</h3>
-
-    <article class="doc-subsection" id="sma50">
-        <h4>SMA50 (Simple Moving Average sur 50 séances)</h4>
-        <p><strong>Définition:</strong> moyenne simple des 50 dernières clôtures.</p>
-        <p><strong>Utilité:</strong> suivre la tendance intermédiaire.</p>
-        <p><strong>Interprétation dans l'app:</strong> un prix au-dessus de la SMA50 traduit un biais positif court/moyen terme; une cassure en dessous peut signaler un affaiblissement.</p>
-        <p><strong>Principe:</strong> SMA50 = somme des 50 clôtures / 50.</p>
-    </article>
-
-    <article class="doc-subsection" id="sma200">
-        <h4>SMA200 (Simple Moving Average sur 200 séances)</h4>
-        <p><strong>Définition:</strong> moyenne simple des 200 dernières clôtures.</p>
-        <p><strong>Utilité:</strong> repérer la tendance de fond long terme.</p>
-        <p><strong>Interprétation dans l'app:</strong> le critère "Prix au-dessus de la SMA200" apporte un poids important au score Buy, et "Cassure sous SMA200" pèse fortement dans le score Sell.</p>
-    </article>
-
-    <article class="doc-subsection" id="rsi14">
-        <h4>RSI14 (Relative Strength Index, 14 périodes)</h4>
-        <p><strong>Définition:</strong> oscillateur de momentum mesurant l'équilibre entre hausses et baisses récentes.</p>
-        <p><strong>Pourquoi 14:</strong> réglage classique donnant un compromis entre réactivité et stabilité.</p>
-        <p><strong>Interprétation:</strong> dans cette application, une zone 35-55 favorise l'entrée (momentum équilibré), tandis qu'un RSI élevé (>= 75) augmente le risque de zone de vente.</p>
-        <p><strong>Repères usuels:</strong> surachat souvent au-dessus de 70, survente souvent sous 30.</p>
-    </article>
-
-    <article class="doc-subsection" id="drawdown">
-        <h4>Drawdown 52 semaines</h4>
-        <p><strong>Définition:</strong> écart en % entre le cours actuel et le plus haut des ~252 dernières séances.</p>
-        <p><strong>Utilité:</strong> situer le titre dans son cycle, entre décote et proximité des sommets.</p>
-        <p><strong>Interprétation dans l'app:</strong> pour le score Buy, une zone entre -15% et -5% est recherchée comme repli modéré; proche de 0% signifie un prix proche des plus hauts annuels.</p>
-    </article>
-
-    <article class="doc-subsection" id="macd">
-        <h4>MACD (Moving Average Convergence Divergence)</h4>
-        <p><strong>EMA12:</strong> moyenne mobile exponentielle rapide (12 séances).</p>
-        <p><strong>EMA26:</strong> moyenne mobile exponentielle lente (26 séances).</p>
-        <p><strong>MACD line:</strong> EMA12 - EMA26.</p>
-        <p><strong>Signal line:</strong> EMA 9 de la MACD line.</p>
-        <p><strong>Histogram:</strong> MACD line - Signal line, utile pour visualiser l'accélération ou le ralentissement du momentum.</p>
-        <p><strong>Rôle:</strong> dans l'application, le MACD est un module de confirmation optionnel pour affiner le timing.</p>
-    </article>
-</section>
-
-<section class="card" id="scoring">
-    <h3>Comment l'application calcule les scores</h3>
-
-    <article class="doc-subsection" id="buy-zone">
-        <h4>Logique Buy zone</h4>
-        <p>
-            Le score Buy combine plusieurs familles de signaux: tendance (prix vs SMA200, SMA50 vs SMA200),
-            momentum (RSI, clôture vs veille), positionnement cyclique (drawdown 52 semaines), et MACD si activé.
-        </p>
-        <p>
-            Les critères principaux ont des poids explicites (ex: +30 pour "prix au-dessus SMA200", +20 pour
-            "SMA50 au-dessus SMA200", +20 pour "RSI14 entre 35 et 55", +20 pour "drawdown entre -15% et -5%", +10 pour une clôture en hausse).
-            Le score final est borné entre 0 et 100.
-        </p>
-        <p>
-            Le label associé est ensuite mappé par plage: 0-39 = <strong>NoBuy</strong>, 40-69 = <strong>Watch</strong>, 70-100 = <strong>BuyZone</strong>.
-        </p>
-        <div class="doc-example">
-            <strong>Exemple d'interprétation:</strong> titre loin des plus hauts annuels (drawdown modéré), structure de tendance solide
-            et momentum qui repart = zone potentiellement intéressante pour surveiller un point d'entrée.
-        </div>
-    </article>
-
-    <article class="doc-subsection" id="sell-zone">
-        <h4>Logique Sell zone</h4>
-        <p>
-            Le score Sell est orienté gestion du risque et prise de profit: surchauffe (RSI élevé), extension de prix,
-            dégradation du momentum, puis cassures techniques (SMA50 / SMA200). Ces signaux sont combinés dans un score borné de 0 à 100.
-        </p>
-        <p>
-            Exemples de facteurs: RSI14 >= 75, prix > 12% au-dessus SMA50, clôture sous la veille, cassure sous SMA50,
-            cassure sous SMA200. Le label devient: 0-34 = <strong>Hold</strong>, 35-64 = <strong>TrimTakeProfit</strong>, 65-100 = <strong>SellZone</strong>.
-        </p>
-        <div class="doc-example">
-            <strong>Exemple d'interprétation:</strong> RSI élevé + MACD qui ralentit + prix proche des plus hauts peut indiquer un essoufflement
-            et une zone de prise de profit progressive.
-        </div>
-    </article>
-</section>
-
-<section class="card" id="macd-option">
-    <h3>Prise en compte optionnelle du MACD</h3>
-    <p>
-        La case "Activer le MACD pour les signaux Buy/Sell" du dashboard permet d'inclure ou non des facteurs MACD dans le scoring.
-    </p>
+    <h3>Indicateurs disponibles</h3>
     <ul>
-        <li><strong>MACD désactivé:</strong> modèle plus simple, centré sur tendance, RSI, drawdown et dynamique de prix.</li>
-        <li><strong>MACD activé:</strong> modèle plus précis sur le timing, avec confirmations supplémentaires, mais aussi potentiellement plus de variations de score.</li>
+        <li>SMA50 / SMA200</li>
+        <li>EMA12 / EMA26</li>
+        <li>RSI14</li>
+        <li>Drawdown 52 semaines</li>
+        <li>MACD (line, signal, histogram)</li>
+        <li>Bandes de Bollinger</li>
+        <li>Parabolic SAR</li>
     </ul>
+
+    <h3>Principe de lecture</h3>
     <p>
-        En pratique, le MACD n'agit pas comme déclencheur unique "magique". Il enrichit une lecture déjà basée sur plusieurs signaux convergents.
+        Les vues <strong>Watchlist</strong> et <strong>Détail</strong> affichent l'évolution des prix et des indicateurs
+        pour aider à une analyse manuelle. Aucune zone décisionnelle n'est calculée ni affichée.
     </p>
-</section>
-
-<section class="card" id="glossaire">
-    <h3>Notions de finance / analyse technique</h3>
-    <dl class="doc-glossary">
-        <dt>Tendance haussière / baissière</dt>
-        <dd>Direction générale des prix sur une période donnée: hausse durable ou baisse durable.</dd>
-
-        <dt>Momentum</dt>
-        <dd>Vitesse de déplacement des prix. Un momentum fort soutient la tendance; un momentum qui ralentit signale un risque d'essoufflement.</dd>
-
-        <dt>Surachat</dt>
-        <dd>Zone où le prix a beaucoup monté rapidement (souvent RSI élevé), avec risque de consolidation.</dd>
-
-        <dt>Survente</dt>
-        <dd>Zone où le prix a fortement baissé rapidement (souvent RSI faible), parfois suivie d'un rebond technique.</dd>
-
-        <dt>Drawdown</dt>
-        <dd>Baisse en % depuis un plus haut de référence (ici 52 semaines).</dd>
-
-        <dt>Moyenne mobile</dt>
-        <dd>Moyenne des prix sur N périodes, utilisée pour lisser les fluctuations et visualiser la tendance.</dd>
-
-        <dt>Croisement haussier / baissier</dt>
-        <dd>Quand un indicateur passe au-dessus ou en dessous d'un autre (ex: MACD vs Signal line), suggérant un changement de dynamique.</dd>
-
-        <dt>Confirmation</dt>
-        <dd>Validation d'une hypothèse par plusieurs signaux cohérents, plutôt que par un seul indicateur isolé.</dd>
-
-        <dt>Faux signal</dt>
-        <dd>Signal technique qui semble valide mais est rapidement invalidé par le marché.</dd>
-
-        <dt>Action cyclique</dt>
-        <dd>Action sensible au cycle économique et aux prix de matières premières, avec phases de hausse et baisse parfois marquées.</dd>
-
-        <dt>Support / résistance</dt>
-        <dd>Zones de prix où le marché réagit souvent: support en bas, résistance en haut.</dd>
-
-        <dt>Volatilité</dt>
-        <dd>Amplitude des variations de prix. Plus la volatilité est élevée, plus les mouvements peuvent être rapides et brusques.</dd>
-    </dl>
-</section>
-
-<section class="card" id="interpretation">
-    <h3>Comment interpréter les signaux</h3>
-    <ul>
-        <li>Un score élevé n'est jamais une certitude, seulement une configuration statistiquement plus cohérente.</li>
-        <li>Un indicateur seul ne suffit pas: la logique de l'application repose sur la confluence de plusieurs facteurs.</li>
-        <li>Le contexte global reste essentiel (actualité secteur, macroéconomie, volatilité du marché).</li>
-        <li>Les scores servent surtout à filtrer les situations à analyser plus en détail avant décision humaine.</li>
-    </ul>
-</section>
-
-<section class="card" id="faq">
-    <h3>FAQ rapide</h3>
-    <article class="doc-subsection">
-        <h4>Pourquoi un score Buy peut rester élevé si le RSI n'est pas parfait ?</h4>
-        <p>Parce que le score additionne plusieurs critères pondérés. Une faiblesse sur un facteur peut être compensée par une tendance de fond robuste.</p>
-    </article>
-    <article class="doc-subsection">
-        <h4>Pourquoi un signal Sell peut apparaître même sans cassure SMA200 ?</h4>
-        <p>Le score Sell capte aussi la surchauffe et la perte de momentum. Une cassure SMA200 renforce fortement l'alerte, mais n'est pas obligatoire pour une zone de prise de profit.</p>
-    </article>
-</section>
-
-<section class="card" id="avertissement">
-    <h3>Avertissement</h3>
-    <p>Ce contenu est fourni à des fins éducatives et d'aide à l'analyse.</p>
-    <p>Il ne constitue pas un conseil en investissement ni une recommandation personnalisée.</p>
-    <p>L'utilisateur reste seul responsable de ses décisions financières.</p>
 </section>

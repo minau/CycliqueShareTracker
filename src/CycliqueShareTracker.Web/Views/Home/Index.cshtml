@@ -22,26 +22,13 @@
         <label>
             Tri
             <select name="sortBy" onchange="this.form.submit()">
-                <option value="buy" selected="@(Model.SortBy == "buy")">Buy score décroissant</option>
-                <option value="sell" selected="@(Model.SortBy == "sell")">Sell score décroissant</option>
-                <option value="name" selected="@(Model.SortBy == "name")">Nom</option>
                 <option value="ticker" selected="@(Model.SortBy == "ticker")">Ticker</option>
+                <option value="name" selected="@(Model.SortBy == "name")">Nom</option>
             </select>
         </label>
-        <label>
-            Filtre
-            <select name="filter" onchange="this.form.submit()">
-                <option value="all" selected="@(Model.Filter == "all")">Toutes</option>
-                <option value="buy" selected="@(Model.Filter == "buy")">Buy candidates</option>
-                <option value="sell" selected="@(Model.Filter == "sell")">Sell candidates</option>
-                <option value="neutral" selected="@(Model.Filter == "neutral")">Neutres</option>
-            </select>
-        </label>
-        <input type="hidden" name="includeMacdInScoring" value="true" />
     </form>
 
     <p>Algorithme actif: <strong>@Model.ActiveAlgorithmName</strong></p>
-    <p>Top Buy candidate: <strong>@(Model.TopBuySymbol ?? "N/A")</strong> | Top Sell candidate: <strong>@(Model.TopSellSymbol ?? "N/A")</strong></p>
 </section>
 
 <section class="card">
@@ -55,10 +42,6 @@
                 <th>SMA200</th>
                 <th>RSI14</th>
                 <th>Drawdown 52w</th>
-                <th>Buy score</th>
-                <th>Sell score</th>
-                <th>Statut</th>
-                <th>Raison clé</th>
                 <th>Détail</th>
             </tr>
         </thead>
@@ -73,19 +56,6 @@
                     <td>@(item.Sma200?.ToString("F2") ?? "N/A")</td>
                     <td>@(item.Rsi14?.ToString("F2") ?? "N/A")</td>
                     <td>@(item.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
-                    <td>@(item.BuyScore?.ToString() ?? "N/A")</td>
-                    <td>@(item.SellScore?.ToString() ?? "N/A")</td>
-                    <td>@item.Status</td>
-                    <td>
-                        @if (!string.IsNullOrWhiteSpace(item.Error))
-                        {
-                            <span>@item.Error</span>
-                        }
-                        else
-                        {
-                            <span>@item.PrimaryReason</span>
-                        }
-                    </td>
                     <td>
                         <a asp-controller="Home"
                            asp-action="Detail"
@@ -93,6 +63,12 @@
                            asp-route-algorithmType="@Model.ActiveAlgorithmType">Ouvrir</a>
                     </td>
                 </tr>
+                @if (!string.IsNullOrWhiteSpace(item.Error))
+                {
+                    <tr>
+                        <td colspan="8">@item.Error</td>
+                    </tr>
+                }
             }
         </tbody>
     </table>

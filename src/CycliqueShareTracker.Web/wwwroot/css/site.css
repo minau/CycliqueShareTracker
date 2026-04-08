@@ -4,7 +4,6 @@ header { background: #1f2937; color: white; padding: 1rem; }
 .container a { color: #1d4ed8; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
 .card { background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 1rem; }
-.signal { font-size: 1.4rem; font-weight: bold; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #ddd; padding: .5rem; text-align: left; }
 button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
@@ -12,38 +11,6 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
 .top-nav a { color: white; text-decoration: none; }
 .top-nav a:hover { text-decoration: underline; }
 .section-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-.signal-tooltip { position: relative; display: inline-block; }
-.signal-trigger { cursor: help; }
-.signal-tooltip-content {
-    display: none;
-    position: absolute;
-    left: 0;
-    top: calc(100% + 8px);
-    z-index: 20;
-    width: 320px;
-    max-width: min(80vw, 320px);
-    background: #111827;
-    color: #f9fafb;
-    border-radius: 8px;
-    padding: 0.75rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,.25);
-    font-size: 0.85rem;
-}
-.signal-tooltip:hover .signal-tooltip-content,
-.signal-tooltip:focus-within .signal-tooltip-content {
-    display: block;
-}
-.signal-tooltip-content h4 {
-    margin: 0 0 .35rem;
-    font-size: .95rem;
-}
-.signal-tooltip-score { margin: 0 0 .5rem; font-weight: 600; }
-.signal-tooltip-factors { list-style: none; margin: 0; padding: 0; }
-.signal-tooltip-factors li { display: flex; gap: .35rem; margin-bottom: .2rem; }
-.signal-tooltip-factors li.not-triggered { opacity: .65; }
-.factor-points { font-weight: 700; min-width: 2.1rem; }
-.signal-tooltip-reason { margin: .6rem 0 0; font-style: italic; }
-
 .chart-container {
     position: relative;
     height: 560px;

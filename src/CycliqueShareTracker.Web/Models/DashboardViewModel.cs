@@ -19,24 +19,13 @@ public sealed class DashboardViewModel
     public decimal? MacdLine { get; init; }
     public decimal? MacdSignalLine { get; init; }
     public decimal? MacdHistogram { get; init; }
-    public int? Score { get; init; }
-    public string Signal { get; init; } = "N/A";
-    public string EntryPrimaryReason { get; init; } = "N/A";
-    public IReadOnlyList<SignalScoreFactorViewModel> EntryScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
-    public int? ExitScore { get; init; }
-    public string ExitSignal { get; init; } = "N/A";
-    public string ExitPrimaryReason { get; init; } = "N/A";
-    public IReadOnlyList<SignalScoreFactorViewModel> ExitScoreFactors { get; init; } = Array.Empty<SignalScoreFactorViewModel>();
-    public bool IncludeMacdInScoring { get; init; } = true;
     public string ActiveAlgorithmType { get; init; } = "RsiMeanReversion";
     public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
-    public SignalTooltipViewModel EntryTooltip { get; init; } = new();
-    public SignalTooltipViewModel ExitTooltip { get; init; } = new();
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
-    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, bool includeMacdInScoring, string assetSector, string? notice = null)
+    public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string assetSector, string? notice = null)
     {
         return new DashboardViewModel
         {
@@ -55,31 +44,8 @@ public sealed class DashboardViewModel
             MacdLine = snapshot.MacdLine,
             MacdSignalLine = snapshot.MacdSignalLine,
             MacdHistogram = snapshot.MacdHistogram,
-            Score = snapshot.Score,
-            Signal = FormatSignal(snapshot.SignalLabel?.ToString()),
-            EntryPrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
-            EntryScoreFactors = snapshot.EntryScoreFactors.Select(MapFactor).ToList(),
-            ExitScore = snapshot.ExitScore,
-            ExitSignal = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
-            ExitPrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
-            ExitScoreFactors = snapshot.ExitScoreFactors.Select(MapFactor).ToList(),
-            IncludeMacdInScoring = includeMacdInScoring,
             ActiveAlgorithmType = snapshot.AlgorithmType.ToString(),
             ActiveAlgorithmName = snapshot.AlgorithmName,
-            EntryTooltip = new SignalTooltipViewModel
-            {
-                Title = FormatSignal(snapshot.SignalLabel?.ToString()),
-                Score = snapshot.Score,
-                PrimaryReason = string.IsNullOrWhiteSpace(snapshot.EntryPrimaryReason) ? "N/A" : snapshot.EntryPrimaryReason,
-                Factors = snapshot.EntryScoreFactors.Select(MapFactor).ToList()
-            },
-            ExitTooltip = new SignalTooltipViewModel
-            {
-                Title = FormatExitSignal(snapshot.ExitSignalLabel?.ToString()),
-                Score = snapshot.ExitScore,
-                PrimaryReason = string.IsNullOrWhiteSpace(snapshot.ExitPrimaryReason) ? "N/A" : snapshot.ExitPrimaryReason,
-                Factors = snapshot.ExitScoreFactors.Select(MapFactor).ToList()
-            },
             Notice = notice,
             ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
             {
@@ -97,40 +63,9 @@ public sealed class DashboardViewModel
                 BollingerMiddle = x.BollingerMiddle,
                 BollingerUpper = x.BollingerUpper,
                 BollingerLower = x.BollingerLower,
-                ParabolicSar = x.ParabolicSar,
-                EntryScore = x.EntryScore,
-                EntryPrimaryReason = string.IsNullOrWhiteSpace(x.EntryPrimaryReason) ? "N/A" : x.EntryPrimaryReason,
-                EntryScoreFactors = x.EntryScoreFactors.Select(MapFactor).ToList(),
-                IsBuyZone = x.IsBuyZone,
-                BuySignal = x.BuySignal,
-                ExitScore = x.ExitScore,
-                ExitPrimaryReason = string.IsNullOrWhiteSpace(x.ExitPrimaryReason) ? "N/A" : x.ExitPrimaryReason,
-                ExitScoreFactors = x.ExitScoreFactors.Select(MapFactor).ToList(),
-                IsSellZone = x.IsSellZone,
-                SellSignal = x.SellSignal
+                ParabolicSar = x.ParabolicSar
             }).ToList(),
             RecentPrices = snapshot.RecentPrices
-        };
-    }
-
-    public static string FormatSignal(string? signal)
-    {
-        return signal?.ToUpperInvariant().Replace("NOBUY", "NO BUY").Replace("BUYZONE", "BUY ZONE") ?? "N/A";
-    }
-
-    public static string FormatExitSignal(string? signal)
-    {
-        return signal?.ToUpperInvariant().Replace("TRIMTAKEPROFIT", "TRIM / TAKE PROFIT").Replace("SELLZONE", "SELL ZONE") ?? "N/A";
-    }
-
-    private static SignalScoreFactorViewModel MapFactor(ScoreFactorDetail factor)
-    {
-        return new SignalScoreFactorViewModel
-        {
-            Label = factor.Label,
-            Points = factor.Points,
-            Triggered = factor.Triggered,
-            Description = factor.Description
         };
     }
 }

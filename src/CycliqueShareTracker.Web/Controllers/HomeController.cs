@@ -1,6 +1,5 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
-using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,8 +23,7 @@ public class HomeController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(
         [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
-        [FromQuery] string sortBy = "buy",
-        [FromQuery] string filter = "all",
+        [FromQuery] string sortBy = "ticker",
         CancellationToken cancellationToken = default)
     {
         var snapshots = await _dashboardService.GetWatchlistSnapshotsAsync(algorithmType, cancellationToken);
@@ -39,10 +37,6 @@ public class HomeController : Controller
         var items = snapshots.Select(item =>
         {
             var snapshot = item.Snapshot;
-            var status = ResolveStatus(snapshot?.SignalLabel, snapshot?.ExitSignalLabel);
-            var primaryReason = status == "Sell candidate"
-                ? snapshot?.ExitPrimaryReason
-                : snapshot?.EntryPrimaryReason;
 
             var fallbackError = snapshot is not null && snapshot.LastClose is null
                 ? "Aucune donnée de marché disponible pour cette action."
@@ -58,26 +52,17 @@ public class HomeController : Controller
                 Sma200 = snapshot?.Sma200,
                 Rsi14 = snapshot?.Rsi14,
                 Drawdown52WeeksPercent = snapshot?.Drawdown52WeeksPercent,
-                BuyScore = snapshot?.Score,
-                SellScore = snapshot?.ExitScore,
-                Status = status,
-                PrimaryReason = string.IsNullOrWhiteSpace(primaryReason) ? "N/A" : primaryReason,
                 Error = item.Error ?? fallbackError
             };
         });
 
-        var filtered = ApplyFilter(items, filter);
-        var ordered = ApplySort(filtered, sortBy).ToList();
+        var ordered = ApplySort(items, sortBy).ToList();
 
         var model = new WatchlistViewModel
         {
-            IncludeMacdInScoring = true,
             ActiveAlgorithmType = algorithmType.ToString(),
             ActiveAlgorithmName = algorithmType.ToDisplayName(),
             SortBy = sortBy,
-            Filter = filter,
-            TopBuySymbol = items.OrderByDescending(x => x.BuyScore ?? int.MinValue).FirstOrDefault()?.Symbol,
-            TopSellSymbol = items.OrderByDescending(x => x.SellScore ?? int.MinValue).FirstOrDefault()?.Symbol,
             Items = ordered
         };
 
@@ -110,7 +95,7 @@ public class HomeController : Controller
             ? "Aucune donnée marché disponible actuellement pour cette action. Vérifiez la configuration provider/symbol map et relancez une mise à jour."
             : null;
 
-        var model = DashboardViewModel.FromSnapshot(snapshot, true, trackedAsset.Sector, notice);
+        var model = DashboardViewModel.FromSnapshot(snapshot, trackedAsset.Sector, notice);
         return View(model);
     }
 
@@ -133,109 +118,12 @@ public class HomeController : Controller
         return View(true);
     }
 
-    [HttpGet]
-    public async Task<IActionResult> SignalHistory([FromQuery] string symbol, [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(symbol))
-        {
-            return RedirectToAction(nameof(Index), new { algorithmType });
-        }
-
-        var trackedAsset = _dashboardService.GetTrackedAssets().FirstOrDefault(x => string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
-        if (trackedAsset is null)
-        {
-            return NotFound();
-        }
-
-        var snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
-        var history = await _dashboardService.GetSignalHistoryAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
-
-        var model = new SignalHistoryViewModel
-        {
-            AssetSymbol = snapshot.AssetSymbol,
-            AssetName = snapshot.AssetName,
-            IncludeMacdInScoring = true,
-            ActiveAlgorithmType = algorithmType.ToString(),
-            Rows = history.Select(row => new SignalHistoryRowViewModel
-            {
-                Date = row.Date.ToString("dd/MM/yyyy"),
-                Close = row.Close,
-                Sma50 = row.Sma50,
-                Sma200 = row.Sma200,
-                Rsi14 = row.Rsi14,
-                Drawdown52WeeksPercent = row.Drawdown52WeeksPercent,
-                Score = row.Score,
-                Signal = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString()),
-                EntryPrimaryReason = string.IsNullOrWhiteSpace(row.EntryPrimaryReason) ? "N/A" : row.EntryPrimaryReason,
-                EntryTooltip = new SignalTooltipViewModel
-                {
-                    Title = DashboardViewModel.FormatSignal(row.SignalLabel?.ToString()),
-                    Score = row.Score,
-                    PrimaryReason = string.IsNullOrWhiteSpace(row.EntryPrimaryReason) ? "N/A" : row.EntryPrimaryReason,
-                    Factors = row.EntryScoreFactors.Select(f => new SignalScoreFactorViewModel
-                    {
-                        Label = f.Label,
-                        Points = f.Points,
-                        Triggered = f.Triggered,
-                        Description = f.Description
-                    }).ToList()
-                },
-                ExitScore = row.ExitScore,
-                ExitSignal = DashboardViewModel.FormatExitSignal(row.ExitSignalLabel?.ToString()),
-                ExitPrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason,
-                ExitTooltip = new SignalTooltipViewModel
-                {
-                    Title = DashboardViewModel.FormatExitSignal(row.ExitSignalLabel?.ToString()),
-                    Score = row.ExitScore,
-                    PrimaryReason = string.IsNullOrWhiteSpace(row.ExitPrimaryReason) ? "N/A" : row.ExitPrimaryReason,
-                    Factors = row.ExitScoreFactors.Select(f => new SignalScoreFactorViewModel
-                    {
-                        Label = f.Label,
-                        Points = f.Points,
-                        Triggered = f.Triggered,
-                        Description = f.Description
-                    }).ToList()
-                }
-            }).ToList()
-        };
-
-        return View(model);
-    }
-
     private static IEnumerable<WatchlistItemViewModel> ApplySort(IEnumerable<WatchlistItemViewModel> items, string sortBy)
     {
         return sortBy?.ToLowerInvariant() switch
         {
-            "sell" => items.OrderByDescending(x => x.SellScore ?? int.MinValue),
             "name" => items.OrderBy(x => x.Name),
-            "ticker" => items.OrderBy(x => x.Symbol),
-            _ => items.OrderByDescending(x => x.BuyScore ?? int.MinValue)
+            _ => items.OrderBy(x => x.Symbol)
         };
-    }
-
-    private static IEnumerable<WatchlistItemViewModel> ApplyFilter(IEnumerable<WatchlistItemViewModel> items, string filter)
-    {
-        return filter?.ToLowerInvariant() switch
-        {
-            "buy" => items.Where(x => x.Status == "Buy candidate"),
-            "sell" => items.Where(x => x.Status == "Sell candidate"),
-            "neutral" => items.Where(x => x.Status == "Neutral"),
-            _ => items
-        };
-    }
-
-    private static string ResolveStatus(SignalLabel? entrySignal, ExitSignalLabel? exitSignal)
-    {
-        if (exitSignal == ExitSignalLabel.SellZone)
-        {
-            return "Sell candidate";
-        }
-
-        if (entrySignal == SignalLabel.BuyZone)
-        {
-            return "Buy candidate";
-        }
-
-        return "Neutral";
     }
 }
