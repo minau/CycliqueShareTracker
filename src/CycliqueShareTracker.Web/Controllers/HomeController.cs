@@ -4,7 +4,6 @@ using CycliqueShareTracker.Domain.Enums;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Web.Controllers;
 
@@ -13,25 +12,13 @@ public class HomeController : Controller
 {
     private readonly IDashboardService _dashboardService;
     private readonly IDataSyncService _dataSyncService;
-    private readonly IBacktestService _backtestService;
-    private readonly IBacktestAnalysisExportService _backtestAnalysisExportService;
-    private readonly ILogger<HomeController> _logger;
-    private readonly BacktestExportOptions _backtestExportOptions;
 
     public HomeController(
         IDashboardService dashboardService,
-        IDataSyncService dataSyncService,
-        IBacktestService backtestService,
-        IBacktestAnalysisExportService backtestAnalysisExportService,
-        IOptions<BacktestExportOptions> backtestExportOptions,
-        ILogger<HomeController> logger)
+        IDataSyncService dataSyncService)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
-        _backtestService = backtestService;
-        _backtestAnalysisExportService = backtestAnalysisExportService;
-        _backtestExportOptions = backtestExportOptions.Value;
-        _logger = logger;
     }
 
     [HttpGet]
@@ -138,151 +125,6 @@ public class HomeController : Controller
         }
 
         return RedirectToAction(nameof(Index), new { algorithmType });
-    }
-
-
-
-    [HttpGet]
-    public async Task<IActionResult> Backtest(
-        [FromQuery] string symbol = "__WATCHLIST__",
-        [FromQuery] string? startDate = null,
-        [FromQuery] string? endDate = null,
-        [FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion,
-        [FromQuery] bool runBacktest = false,
-        [FromQuery] bool generateAnalysisJson = false,
-        CancellationToken cancellationToken = default)
-    {
-        var trackedAssets = _dashboardService.GetTrackedAssets();
-        var end = DateOnly.TryParse(endDate, out var parsedEnd) ? parsedEnd : DateOnly.FromDateTime(DateTime.UtcNow);
-        var start = DateOnly.TryParse(startDate, out var parsedStart) ? parsedStart : end.AddYears(-3);
-
-        var model = new BacktestPageViewModel
-        {
-            SelectedSymbol = string.IsNullOrWhiteSpace(symbol) ? "__WATCHLIST__" : symbol,
-            StartDate = start,
-            EndDate = end,
-            IncludeMacdInScoring = true,
-            GenerateAnalysisJson = generateAnalysisJson,
-            SelectedAlgorithmType = algorithmType.ToString(),
-            SelectedAlgorithmName = algorithmType.ToDisplayName(),
-            SymbolOptions = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
-            {
-                new("Watchlist complète", "__WATCHLIST__")
-            }.Concat(trackedAssets.Select(asset => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem($"{asset.Symbol} - {asset.Name}", asset.Symbol))).ToList(),
-            AlgorithmOptions = Enum.GetValues<AlgorithmType>()
-                .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(x.ToDisplayName(), x.ToString(), x == algorithmType))
-                .ToList()
-        };
-
-        if (runBacktest)
-        {
-            try
-            {
-                var symbols = model.SelectedSymbol == "__WATCHLIST__"
-                    ? trackedAssets.Select(x => x.Symbol).ToList()
-                    : new List<string> { model.SelectedSymbol };
-
-                _logger.LogInformation("Backtest requested. Symbols={Symbols}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}; GenerateAnalysisJson={GenerateAnalysisJson}",
-                    string.Join(",", symbols), model.StartDate, model.EndDate, algorithmType, model.GenerateAnalysisJson);
-
-                var request = new CycliqueShareTracker.Application.Models.BacktestRequest(
-                    model.StartDate,
-                    model.EndDate,
-                    symbols,
-                    model.IncludeMacdInScoring,
-                    algorithmType);
-
-                model.Result = await _backtestService.RunAsync(request, cancellationToken);
-
-                if (model.Result.Assets.All(a => a.Metrics.TotalTrades == 0 && !string.IsNullOrWhiteSpace(a.Error)))
-                {
-                    _logger.LogWarning("Backtest returned no usable data for requested symbols. Triggering daily sync and retrying once.");
-                    await _dataSyncService.RunDailyUpdateAsync(cancellationToken);
-                    model.Result = await _backtestService.RunAsync(request, cancellationToken);
-                }
-
-                _logger.LogInformation("Backtest completed. AggregateTrades={Trades}; AggregatePerf={Performance}; Assets={AssetCount}",
-                    model.Result.AggregateMetrics.TotalTrades,
-                    model.Result.AggregateMetrics.TotalPerformancePercent,
-                    model.Result.Assets.Count);
-
-                model.HasExecuted = true;
-                model.ExecutedAtUtc = DateTime.UtcNow;
-
-                if (model.GenerateAnalysisJson)
-                {
-                    try
-                    {
-                        model.AnalysisJsonPath = await _backtestAnalysisExportService.ExportAsync(
-                            model.Result,
-                            model.SelectedSymbol,
-                            model.ExecutedAtUtc,
-                            cancellationToken);
-
-                        model.AnalysisJsonDownloadUrl = Url.Action(nameof(DownloadBacktestAnalysis), new { filePath = model.AnalysisJsonPath });
-                        _logger.LogInformation("Backtest analysis JSON generated at absolute path: {AnalysisJsonPath}", model.AnalysisJsonPath);
-                    }
-                    catch (Exception exportException)
-                    {
-                        _logger.LogError(exportException,
-                            "Backtest analysis JSON export failed. SymbolSelection={SelectedSymbol}; Start={StartDate}; End={EndDate}; Algorithm={Algorithm}",
-                            model.SelectedSymbol,
-                            model.StartDate,
-                            model.EndDate,
-                            algorithmType);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Backtest execution failed for symbol selection {SelectedSymbol}", model.SelectedSymbol);
-                model.Error = ex.Message;
-                model.HasExecuted = true;
-            }
-        }
-
-        return View(model);
-    }
-
-
-    [HttpGet]
-    public IActionResult DownloadBacktestAnalysis([FromQuery] string filePath)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            return BadRequest("Le chemin du fichier est requis.");
-        }
-
-        var fullPath = Path.GetFullPath(filePath);
-        if (!System.IO.File.Exists(fullPath))
-        {
-            _logger.LogWarning("Backtest analysis download requested but file was not found. Path={FilePath}", fullPath);
-            return NotFound("Le fichier JSON n'existe pas.");
-        }
-
-        var exportRoot = ResolveExportRoot();
-        if (!fullPath.StartsWith(exportRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning("Backtest analysis download blocked for path outside export directory. Path={FilePath}; ExportRoot={ExportRoot}", fullPath, exportRoot);
-            return Forbid();
-        }
-
-        var fileName = Path.GetFileName(fullPath);
-        return PhysicalFile(fullPath, "application/json", fileName);
-    }
-
-    private string ResolveExportRoot()
-    {
-        var envOverride = Environment.GetEnvironmentVariable("BACKTEST_EXPORT_DIRECTORY");
-        var configured = string.IsNullOrWhiteSpace(envOverride)
-            ? _backtestExportOptions.DirectoryPath
-            : envOverride;
-
-        var root = string.IsNullOrWhiteSpace(configured)
-            ? "/var/cyclique/exports"
-            : configured;
-
-        return Path.GetFullPath(root);
     }
 
     [HttpGet]
