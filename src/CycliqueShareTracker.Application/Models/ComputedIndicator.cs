@@ -13,4 +13,9 @@ public sealed record ComputedIndicator(
     decimal? MacdHistogram = null,
     decimal? PreviousMacdHistogram = null,
     decimal? Ema12 = null,
-    decimal? Ema26 = null);
+    decimal? Ema26 = null,
+    decimal? BollingerMiddle = null,
+    decimal? BollingerUpper = null,
+    decimal? BollingerLower = null,
+    decimal? BollingerStdDev = null,
+    decimal? ParabolicSar = null);

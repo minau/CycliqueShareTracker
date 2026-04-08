@@ -17,11 +17,18 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
         }
 
         var ordered = prices.OrderBy(p => p.Date).ToList();
-        var closeSeries = ordered.Select(x => (decimal?)x.Close).ToList();
+        var closeSeries = new decimal?[ordered.Count];
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            closeSeries[i] = ordered[i].Close;
+        }
+
         var ema12Series = ComputeEma(closeSeries, MacdFastPeriod);
         var ema26Series = ComputeEma(closeSeries, MacdSlowPeriod);
         var macdLineSeries = ComputeEmaDifference(ema12Series, ema26Series);
         var macdSignalSeries = ComputeEma(macdLineSeries, MacdSignalPeriod);
+        var bollingerSeries = ComputeBollingerBands(ordered);
+        var parabolicSarSeries = ComputeParabolicSar(ordered);
         var results = new List<ComputedIndicator>(ordered.Count);
 
         for (var i = 0; i < ordered.Count; i++)
@@ -34,12 +41,24 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
 
             if (i >= 49)
             {
-                sma50 = ordered.Skip(i - 49).Take(50).Average(p => p.Close);
+                decimal sum50 = 0;
+                for (var j = i - 49; j <= i; j++)
+                {
+                    sum50 += ordered[j].Close;
+                }
+
+                sma50 = decimal.Round(sum50 / 50m, 4);
             }
 
             if (i >= 199)
             {
-                sma200 = ordered.Skip(i - 199).Take(200).Average(p => p.Close);
+                decimal sum200 = 0;
+                for (var j = i - 199; j <= i; j++)
+                {
+                    sum200 += ordered[j].Close;
+                }
+
+                sma200 = decimal.Round(sum200 / 200m, 4);
             }
 
             if (i >= 14)
@@ -50,7 +69,16 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
             if (i >= 1)
             {
                 var lookback = Math.Min(252, i + 1);
-                var highest = ordered.Skip(i - lookback + 1).Take(lookback).Max(p => p.High);
+                var startIndex = i - lookback + 1;
+                var highest = ordered[startIndex].High;
+                for (var j = startIndex + 1; j <= i; j++)
+                {
+                    if (ordered[j].High > highest)
+                    {
+                        highest = ordered[j].High;
+                    }
+                }
+
                 drawdown = highest == 0 ? 0 : ((current.Close / highest) - 1m) * 100m;
             }
 
@@ -82,10 +110,206 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
                 macdHistogram,
                 previousMacdHistogram,
                 ema12Series[i],
-                ema26Series[i]));
+                ema26Series[i],
+                bollingerSeries[i].Middle,
+                bollingerSeries[i].Upper,
+                bollingerSeries[i].Lower,
+                bollingerSeries[i].StdDev,
+                parabolicSarSeries[i].Sar));
         }
 
         return results;
+    }
+
+    public IReadOnlyList<BollingerBandsPoint> ComputeBollingerBands(
+        IReadOnlyList<PriceBar> prices,
+        int period = 20,
+        decimal standardDeviationMultiplier = 2.0m)
+    {
+        if (period <= 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(period), "Period must be greater than 1.");
+        }
+
+        if (standardDeviationMultiplier <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(standardDeviationMultiplier), "Standard deviation multiplier must be positive.");
+        }
+
+        if (prices.Count == 0)
+        {
+            return Array.Empty<BollingerBandsPoint>();
+        }
+
+        var ordered = prices.OrderBy(p => p.Date).ToList();
+        var result = new List<BollingerBandsPoint>(ordered.Count);
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            decimal? middle = null;
+            decimal? upper = null;
+            decimal? lower = null;
+            decimal? stdDev = null;
+
+            if (i >= period - 1)
+            {
+                var windowStart = i - period + 1;
+                decimal sum = 0;
+                for (var j = windowStart; j <= i; j++)
+                {
+                    sum += ordered[j].Close;
+                }
+
+                var mean = sum / period;
+                decimal varianceSum = 0;
+                for (var j = windowStart; j <= i; j++)
+                {
+                    var delta = ordered[j].Close - mean;
+                    varianceSum += delta * delta;
+                }
+
+                var variance = varianceSum / period;
+                stdDev = decimal.Round((decimal)Math.Sqrt((double)variance), 4);
+                middle = decimal.Round(mean, 4);
+                upper = decimal.Round(middle.Value + (standardDeviationMultiplier * stdDev.Value), 4);
+                lower = decimal.Round(middle.Value - (standardDeviationMultiplier * stdDev.Value), 4);
+            }
+
+            result.Add(new BollingerBandsPoint(ordered[i].Date, middle, upper, lower, stdDev));
+        }
+
+        return result;
+    }
+
+    public IReadOnlyList<ParabolicSarPoint> ComputeParabolicSar(
+        IReadOnlyList<PriceBar> prices,
+        decimal step = 0.02m,
+        decimal maxStep = 0.20m)
+    {
+        if (step <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(step), "Step must be positive.");
+        }
+
+        if (maxStep < step)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxStep), "Maximum step must be greater than or equal to step.");
+        }
+
+        if (prices.Count == 0)
+        {
+            return Array.Empty<ParabolicSarPoint>();
+        }
+
+        var ordered = prices.OrderBy(p => p.Date).ToList();
+        var result = new List<ParabolicSarPoint>(ordered.Count);
+
+        result.Add(new ParabolicSarPoint(ordered[0].Date, null, null, null, null, false));
+        if (ordered.Count == 1)
+        {
+            return result;
+        }
+
+        var isUpTrend = ordered[1].Close >= ordered[0].Close;
+        var accelerationFactor = step;
+        var extremePoint = isUpTrend ? Math.Max(ordered[0].High, ordered[1].High) : Math.Min(ordered[0].Low, ordered[1].Low);
+        var currentSar = isUpTrend ? Math.Min(ordered[0].Low, ordered[1].Low) : Math.Max(ordered[0].High, ordered[1].High);
+
+        result.Add(new ParabolicSarPoint(
+            ordered[1].Date,
+            decimal.Round(currentSar, 4),
+            isUpTrend,
+            decimal.Round(extremePoint, 4),
+            accelerationFactor,
+            false));
+
+        for (var i = 2; i < ordered.Count; i++)
+        {
+            var bar = ordered[i];
+            var previous = ordered[i - 1];
+            var previous2 = ordered[i - 2];
+
+            var candidateSar = currentSar + (accelerationFactor * (extremePoint - currentSar));
+
+            if (isUpTrend)
+            {
+                candidateSar = Math.Min(candidateSar, previous.Low);
+                candidateSar = Math.Min(candidateSar, previous2.Low);
+            }
+            else
+            {
+                candidateSar = Math.Max(candidateSar, previous.High);
+                candidateSar = Math.Max(candidateSar, previous2.High);
+            }
+
+            var isReversal = false;
+            if (isUpTrend && bar.Low < candidateSar)
+            {
+                isReversal = true;
+                isUpTrend = false;
+                candidateSar = extremePoint;
+                extremePoint = bar.Low;
+                accelerationFactor = step;
+            }
+            else if (!isUpTrend && bar.High > candidateSar)
+            {
+                isReversal = true;
+                isUpTrend = true;
+                candidateSar = extremePoint;
+                extremePoint = bar.High;
+                accelerationFactor = step;
+            }
+            else
+            {
+                if (isUpTrend && bar.High > extremePoint)
+                {
+                    extremePoint = bar.High;
+                    accelerationFactor = Math.Min(accelerationFactor + step, maxStep);
+                }
+                else if (!isUpTrend && bar.Low < extremePoint)
+                {
+                    extremePoint = bar.Low;
+                    accelerationFactor = Math.Min(accelerationFactor + step, maxStep);
+                }
+            }
+
+            currentSar = candidateSar;
+            result.Add(new ParabolicSarPoint(
+                bar.Date,
+                decimal.Round(currentSar, 4),
+                isUpTrend,
+                decimal.Round(extremePoint, 4),
+                decimal.Round(accelerationFactor, 4),
+                isReversal));
+        }
+
+        return result;
+    }
+
+    public IReadOnlyList<EnrichedPriceBar> EnrichWithTechnicalIndicators(
+        IReadOnlyList<PriceBar> prices,
+        int bollingerPeriod = 20,
+        decimal bollingerMultiplier = 2.0m,
+        decimal parabolicSarStep = 0.02m,
+        decimal parabolicSarMaxStep = 0.20m)
+    {
+        if (prices.Count == 0)
+        {
+            return Array.Empty<EnrichedPriceBar>();
+        }
+
+        var ordered = prices.OrderBy(p => p.Date).ToList();
+        var computedIndicators = Compute(ordered);
+        var bollinger = ComputeBollingerBands(ordered, bollingerPeriod, bollingerMultiplier);
+        var parabolicSar = ComputeParabolicSar(ordered, parabolicSarStep, parabolicSarMaxStep);
+        var result = new List<EnrichedPriceBar>(ordered.Count);
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            result.Add(new EnrichedPriceBar(ordered[i], computedIndicators[i], bollinger[i], parabolicSar[i]));
+        }
+
+        return result;
     }
 
     private static decimal?[] ComputeEmaDifference(IReadOnlyList<decimal?> fastEma, IReadOnlyList<decimal?> slowEma)
@@ -139,9 +363,14 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
             return ema;
         }
 
-        var seedValues = series.Skip(seedIndex - period + 1).Take(period).Select(x => x!.Value).ToList();
+        decimal seedTotal = 0;
+        for (var i = seedIndex - period + 1; i <= seedIndex; i++)
+        {
+            seedTotal += series[i]!.Value;
+        }
+
         var multiplier = 2m / (period + 1m);
-        var previous = seedValues.Average();
+        var previous = seedTotal / period;
         ema[seedIndex] = decimal.Round(previous, 4);
 
         for (var i = seedIndex + 1; i < series.Count; i++)
