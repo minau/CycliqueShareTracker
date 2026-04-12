@@ -14,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<WatchlistOptions>(builder.Configuration.GetSection(WatchlistOptions.SectionName));
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection(DashboardOptions.SectionName));
+builder.Services.Configure<TradingWindowOptions>(builder.Configuration.GetSection(TradingWindowOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
 
@@ -35,6 +36,11 @@ builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Al
 builder.Services.AddScoped<ISignalAlgorithmRegistry, SignalAlgorithmRegistry>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddSingleton<IPositionStore, InMemoryPositionStore>();
+builder.Services.AddSingleton<ITradeExecutionLedger, InMemoryTradeExecutionLedger>();
+builder.Services.AddSingleton<ITradingClock, SystemTradingClock>();
+builder.Services.AddSingleton<ITradingWindowService, TradingWindowService>();
+builder.Services.AddScoped<ISignalEngine, SignalEngine>();
 
 builder.Services.AddHostedService<DailyUpdateBackgroundService>();
 

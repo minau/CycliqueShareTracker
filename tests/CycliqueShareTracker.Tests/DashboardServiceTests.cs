@@ -37,6 +37,7 @@ public sealed class DashboardServiceTests
             priceRepository,
             new IndicatorCalculator(),
             new FakeAlgorithmRegistry(),
+            new SignalEngine(new InMemoryPositionStore(), new InMemoryTradeExecutionLedger(), new AlwaysClosedWindowService(), new FixedTradingClock()),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -45,6 +46,16 @@ public sealed class DashboardServiceTests
                 }
             }),
             Options.Create(new DashboardOptions { HistoryDays = historyDays }));
+    }
+
+    private sealed class AlwaysClosedWindowService : ITradingWindowService
+    {
+        public bool IsInWindow(DateTimeOffset now) => false;
+    }
+
+    private sealed class FixedTradingClock : ITradingClock
+    {
+        public DateTimeOffset UtcNow => new(2026, 4, 2, 12, 0, 0, TimeSpan.Zero);
     }
 
     private sealed class FakeAlgorithmRegistry : ISignalAlgorithmRegistry

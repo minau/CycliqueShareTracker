@@ -1,3 +1,5 @@
+using CycliqueShareTracker.Application.Trading;
+
 namespace CycliqueShareTracker.Application.Models;
 
 public sealed record DashboardSnapshot(
@@ -16,6 +18,8 @@ public sealed record DashboardSnapshot(
     decimal? MacdSignalLine,
     decimal? MacdHistogram,
     IReadOnlyList<DashboardChartPoint> ChartPoints,
+    IReadOnlyList<TradeMarker> TradeMarkers,
+    TrackedPosition CurrentPosition,
     IReadOnlyList<PriceBar> RecentPrices,
     AlgorithmType AlgorithmType,
     string AlgorithmName);
