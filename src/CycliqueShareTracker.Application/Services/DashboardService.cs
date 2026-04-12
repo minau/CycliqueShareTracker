@@ -1,5 +1,6 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
+using CycliqueShareTracker.Application.Trading;
 using Microsoft.Extensions.Options;
 
 namespace CycliqueShareTracker.Application.Services;
@@ -11,6 +12,7 @@ public sealed class DashboardService : IDashboardService
     private readonly IPriceRepository _priceRepository;
     private readonly ISignalAlgorithmRegistry _algorithmRegistry;
     private readonly IIndicatorCalculator _indicatorCalculator;
+    private readonly ISignalEngine _signalEngine;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly DashboardOptions _dashboardOptions;
 
@@ -19,6 +21,7 @@ public sealed class DashboardService : IDashboardService
         IPriceRepository priceRepository,
         IIndicatorCalculator indicatorCalculator,
         ISignalAlgorithmRegistry algorithmRegistry,
+        ISignalEngine signalEngine,
         IOptions<WatchlistOptions> watchlistOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
@@ -26,6 +29,7 @@ public sealed class DashboardService : IDashboardService
         _priceRepository = priceRepository;
         _indicatorCalculator = indicatorCalculator;
         _algorithmRegistry = algorithmRegistry;
+        _signalEngine = signalEngine;
         _watchlist = WatchlistOptions.BuildTrackedAssets(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
@@ -95,6 +99,9 @@ public sealed class DashboardService : IDashboardService
         }).ToList();
 
         var latestComputed = latestPrice is null ? null : computedList.FirstOrDefault(x => x.Date == latestPrice.Date);
+        var dailySignals = _signalEngine.Evaluate(trackedAsset.Symbol, orderedBars, computedList);
+        var markers = BuildTradeMarkers(dailySignals, chartPoints);
+        var currentPosition = dailySignals.LastOrDefault()?.PositionAfter ?? TrackedPosition.Empty(trackedAsset.Symbol);
 
         return new DashboardSnapshot(
             asset.Symbol,
@@ -112,10 +119,54 @@ public sealed class DashboardService : IDashboardService
             latestComputed?.MacdSignalLine,
             latestComputed?.MacdHistogram,
             chartPoints,
+            markers,
+            currentPosition,
             orderedBars,
             algorithmType,
             algorithm.DisplayName);
     }
+
+    private static IReadOnlyList<TradeMarker> BuildTradeMarkers(IReadOnlyList<DailySignalResult> dailySignals, IReadOnlyList<DashboardChartPoint> chartPoints)
+    {
+        var priceByDate = chartPoints.ToDictionary(x => x.Date, x => x);
+        var markers = new List<TradeMarker>();
+
+        foreach (var result in dailySignals)
+        {
+            if (!priceByDate.TryGetValue(result.Date, out var point))
+            {
+                continue;
+            }
+
+            foreach (var action in result.Actions.Where(x => x.Status is TradeExecutionStatus.Executed or TradeExecutionStatus.PendingWindow))
+            {
+                var verticalPrice = action.SignalType is TradeSignalType.Long or TradeSignalType.LeaveShort
+                    ? point.Low
+                    : point.High;
+                var actionText = action.Status == TradeExecutionStatus.PendingWindow
+                    ? $"{action.ActionType} (pending fenêtre 18:04-18:20)"
+                    : action.ActionType.ToString();
+
+                markers.Add(new TradeMarker(
+                    result.Date,
+                    action.SignalType,
+                    verticalPrice,
+                    action.Reason,
+                    actionText,
+                    FormatPosition(result.PositionAfter)));
+            }
+        }
+
+        return markers;
+    }
+
+    private static string FormatPosition(TrackedPosition position)
+        => position.Side switch
+        {
+            PositionSide.Long => $"{position.Quantity:0} LONG {position.Product} - {position.EntryDate:dd/MM/yyyy}",
+            PositionSide.Short => $"{position.Quantity:0} SHORT {position.Product} - {position.EntryDate:dd/MM/yyyy}",
+            _ => "Aucune position"
+        };
 
     private TrackedAssetOptions ResolveTrackedAsset(string symbol)
     {

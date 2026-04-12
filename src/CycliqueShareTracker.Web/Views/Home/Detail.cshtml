@@ -31,6 +31,18 @@
             <li>Histogram: @(Model.MacdHistogram?.ToString("F4") ?? "N/A")</li>
         </ul>
     </div>
+
+    <div class="card">
+        <h3>Position courante</h3>
+        <ul>
+            <li>Side: @Model.CurrentPositionSide</li>
+            <li>Produit: @Model.CurrentProduct</li>
+            <li>Quantité: @Model.CurrentQuantity</li>
+            <li>Date d'entrée: @(Model.CurrentEntryDate?.ToString("dd/MM/yyyy") ?? "N/A")</li>
+            <li>Prix d'entrée: @(Model.CurrentEntryPrice?.ToString("F2") ?? "N/A")</li>
+            <li>Produit ID: @(Model.CurrentProductId ?? "N/A")</li>
+        </ul>
+    </div>
 </section>
 
 
@@ -90,6 +102,7 @@
 
 @{
     var chartDataJson = JsonSerializer.Serialize(Model.ChartPoints);
+    var tradeMarkersJson = JsonSerializer.Serialize(Model.TradeMarkers);
 }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
@@ -97,6 +110,7 @@
 <script>
     (() => {
         const points = @Html.Raw(chartDataJson);
+        const tradeMarkers = @Html.Raw(tradeMarkersJson);
         if (!points || points.length === 0) {
             return;
         }
@@ -113,6 +127,39 @@
         const bollingerUpperData = points.map(x => x.BollingerUpper === null ? null : Number(x.BollingerUpper));
         const bollingerLowerData = points.map(x => x.BollingerLower === null ? null : Number(x.BollingerLower));
         const parabolicSarData = points.map(x => x.ParabolicSar === null ? null : Number(x.ParabolicSar));
+        const markerByDate = new Map((tradeMarkers || []).map(m => [m.Date, m]));
+        const tradeMarkerData = points.map(point => {
+            const marker = markerByDate.get(point.Date);
+            if (!marker) {
+                return null;
+            }
+
+            return Number(marker.Price);
+        });
+        const tradeMarkerColors = points.map(point => {
+            const marker = markerByDate.get(point.Date);
+            if (!marker) {
+                return 'transparent';
+            }
+
+            if (marker.SignalType === 'Long') {
+                return '#16a34a';
+            }
+
+            if (marker.SignalType === 'Short') {
+                return '#dc2626';
+            }
+
+            return '#f59e0b';
+        });
+        const tradeMarkerStyles = points.map(point => {
+            const marker = markerByDate.get(point.Date);
+            if (!marker) {
+                return false;
+            }
+
+            return marker.SignalType === 'LeaveLong' || marker.SignalType === 'LeaveShort' ? 'triangle' : 'rectRot';
+        });
         const macdHistogramColors = macdHistogramData.map(value => {
             if (value === null) {
                 return '#9ca3af';
@@ -411,6 +458,18 @@
                         borderColor: '#be123c',
                         order: 3
                     },
+                    {
+                        label: 'Événements trade',
+                        type: 'line',
+                        data: tradeMarkerData,
+                        showLine: false,
+                        pointRadius: 7,
+                        pointHoverRadius: 9,
+                        pointStyle: tradeMarkerStyles,
+                        backgroundColor: tradeMarkerColors,
+                        borderColor: tradeMarkerColors,
+                        order: 4
+                    },
                     ]
             },
             options: {
@@ -424,6 +483,15 @@
                                 const point = points[context.dataIndex];
                                 if (!point) {
                                     return context.formattedValue;
+                                }
+
+                                if (context.dataset.label === 'Événements trade') {
+                                    const marker = markerByDate.get(point.Date);
+                                    if (!marker) {
+                                        return context.formattedValue;
+                                    }
+
+                                    return `${marker.SignalType} | ${marker.Action} | ${marker.ResultingPosition} | ${marker.Reason}`;
                                 }
 
                                 return `${context.dataset.label}: ${context.formattedValue}`;

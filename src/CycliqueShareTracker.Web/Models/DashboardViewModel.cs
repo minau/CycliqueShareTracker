@@ -1,4 +1,5 @@
 using CycliqueShareTracker.Application.Models;
+using CycliqueShareTracker.Application.Trading;
 
 namespace CycliqueShareTracker.Web.Models;
 
@@ -23,6 +24,13 @@ public sealed class DashboardViewModel
     public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
     public string? Notice { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
+    public IReadOnlyList<TradeMarkerViewModel> TradeMarkers { get; init; } = Array.Empty<TradeMarkerViewModel>();
+    public PositionSide CurrentPositionSide { get; init; }
+    public ProductType CurrentProduct { get; init; }
+    public decimal CurrentQuantity { get; init; }
+    public DateOnly? CurrentEntryDate { get; init; }
+    public decimal? CurrentEntryPrice { get; init; }
+    public string? CurrentProductId { get; init; }
     public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
 
     public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string assetSector, string? notice = null)
@@ -65,6 +73,21 @@ public sealed class DashboardViewModel
                 BollingerLower = x.BollingerLower,
                 ParabolicSar = x.ParabolicSar
             }).ToList(),
+            TradeMarkers = snapshot.TradeMarkers.Select(x => new TradeMarkerViewModel
+            {
+                Date = x.Date.ToString("yyyy-MM-dd"),
+                SignalType = x.SignalType.ToString(),
+                Price = x.Price,
+                Reason = x.Reason,
+                Action = x.Action,
+                ResultingPosition = x.ResultingPosition
+            }).ToList(),
+            CurrentPositionSide = snapshot.CurrentPosition.Side,
+            CurrentProduct = snapshot.CurrentPosition.Product,
+            CurrentQuantity = snapshot.CurrentPosition.Quantity,
+            CurrentEntryDate = snapshot.CurrentPosition.EntryDate,
+            CurrentEntryPrice = snapshot.CurrentPosition.EntryPrice,
+            CurrentProductId = snapshot.CurrentPosition.ProductId,
             RecentPrices = snapshot.RecentPrices
         };
     }
