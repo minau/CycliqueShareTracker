@@ -26,7 +26,7 @@ public sealed class DashboardService : IDashboardService
         _priceRepository = priceRepository;
         _indicatorCalculator = indicatorCalculator;
         _algorithmRegistry = algorithmRegistry;
-        _watchlist = BuildWatchlist(watchlistOptions.Value.Assets);
+        _watchlist = WatchlistOptions.BuildTrackedAssets(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
 
@@ -131,18 +131,5 @@ public sealed class DashboardService : IDashboardService
 
         return _watchlist.FirstOrDefault(asset => string.Equals(asset.Symbol, symbol, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Symbol '{symbol}' is not configured in the watchlist.");
-    }
-
-    private static IReadOnlyList<TrackedAssetOptions> BuildWatchlist(IReadOnlyList<TrackedAssetOptions>? configuredAssets)
-    {
-        var source = configuredAssets is { Count: > 0 }
-            ? configuredAssets
-            : WatchlistOptions.DefaultAssets;
-
-        return source
-            .Where(asset => !string.IsNullOrWhiteSpace(asset.Symbol))
-            .GroupBy(asset => asset.Symbol.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToList();
     }
 }
