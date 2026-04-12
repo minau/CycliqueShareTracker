@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Application.Trading;
+using Xunit;
 
 namespace CycliqueShareTracker.Tests;
 

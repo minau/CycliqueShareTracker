@@ -3,6 +3,7 @@ using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Services;
 using CycliqueShareTracker.Domain.Entities;
 using Microsoft.Extensions.Options;
+using Xunit;
 
 namespace CycliqueShareTracker.Tests;
 
