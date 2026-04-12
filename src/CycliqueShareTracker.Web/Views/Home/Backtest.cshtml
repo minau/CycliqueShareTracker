@@ -1,0 +1,210 @@
+@model BacktestViewModel
+@using System.Text.Json
+
+<section class="card">
+    <h2>Backtest des signaux</h2>
+    <form method="get" asp-action="Backtest" class="backtest-form-grid">
+        <input type="hidden" name="run" value="true" />
+        <label>
+            Titre
+            <select name="symbol">
+                @foreach (var symbol in Model.AvailableSymbols)
+                {
+                    if (symbol == Model.SelectedSymbol)
+                    {
+                        <option selected="selected" value="@symbol">@symbol</option>
+                    }
+                    else
+                    {
+                        <option value="@symbol">@symbol</option>
+                    }
+                }
+            </select>
+        </label>
+        <label>
+            Date début
+            <input type="date" name="startDate" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+        </label>
+        <label>
+            Date fin
+            <input type="date" name="endDate" value="@Model.EndDate.ToString("yyyy-MM-dd")" />
+        </label>
+        <label>
+            Capital initial
+            <input type="number" step="0.01" min="0" name="initialCapital" value="@Model.InitialCapital" />
+        </label>
+        <label>
+            Montant fixe / trade
+            <input type="number" step="0.01" min="0" name="fixedAmountPerTrade" value="@Model.FixedAmountPerTrade" />
+        </label>
+        <label>
+            Frais / trade
+            <input type="number" step="0.01" min="0" name="feePerTrade" value="@Model.FeePerTrade" />
+        </label>
+        <label>
+            Slippage (%)
+            <input type="number" step="0.01" min="0" name="slippagePercent" value="@Model.SlippagePercent" />
+        </label>
+        <label>
+            Clôture fin période
+            <select name="forceCloseOnPeriodEnd">
+                @if (Model.ForceCloseOnPeriodEnd)
+                {
+                    <option value="true" selected="selected">Oui</option>
+                    <option value="false">Non</option>
+                }
+                else
+                {
+                    <option value="true">Oui</option>
+                    <option value="false" selected="selected">Non</option>
+                }
+            </select>
+        </label>
+        <button type="submit">Lancer le backtest</button>
+    </form>
+</section>
+
+@if (Model.HasResult && Model.Summary is not null)
+{
+    <section class="grid">
+        <div class="card">
+            <h3>Résultats synthétiques</h3>
+            <ul>
+                <li>Trades: @Model.Summary.TotalTrades</li>
+                <li>Gagnants: @Model.Summary.WinningTrades</li>
+                <li>Perdants: @Model.Summary.LosingTrades</li>
+                <li>Win rate: @Model.Summary.WinRatePercent.ToString("F2")%</li>
+                <li>PnL total: @Model.Summary.TotalPnl.ToString("F2")</li>
+                <li>PnL moyen / trade: @Model.Summary.AveragePnlPerTrade.ToString("F2")</li>
+                <li>Perf cumulée: @Model.Summary.CumulativePerformancePercent.ToString("F2")%</li>
+                <li>Drawdown max: @Model.Summary.MaxDrawdownPercent.ToString("F2")%</li>
+                <li>Capital final: @Model.Summary.FinalCapital.ToString("F2")</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="card">
+        <h3>Graphique prix + marqueurs + equity</h3>
+        <canvas id="backtestChart" height="140"></canvas>
+    </section>
+
+    <section class="card">
+        <h3>Liste des trades simulés</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Entrée</th>
+                    <th>Sortie</th>
+                    <th>Sens</th>
+                    <th>Produit</th>
+                    <th>Prix entrée</th>
+                    <th>Prix sortie</th>
+                    <th>Quantité</th>
+                    <th>PnL brut</th>
+                    <th>PnL net</th>
+                    <th>Perf</th>
+                    <th>Raison entrée</th>
+                    <th>Raison sortie</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var trade in Model.Trades)
+            {
+                <tr>
+                    <td>@trade.EntryDate</td>
+                    <td>@trade.ExitDate</td>
+                    <td>@trade.Side</td>
+                    <td>@trade.Product</td>
+                    <td>@trade.EntryPrice.ToString("F2")</td>
+                    <td>@trade.ExitPrice.ToString("F2")</td>
+                    <td>@trade.Quantity.ToString("F4")</td>
+                    <td>@trade.GrossPnl.ToString("F2")</td>
+                    <td>@trade.NetPnl.ToString("F2")</td>
+                    <td>@trade.ReturnPercent.ToString("F2")%</td>
+                    <td>@trade.EntryReason</td>
+                    <td>@trade.ExitReason</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </section>
+}
+
+@{
+    var priceDataJson = JsonSerializer.Serialize(Model.PricePoints);
+    var markerDataJson = JsonSerializer.Serialize(Model.Markers);
+    var equityDataJson = JsonSerializer.Serialize(Model.EquityPoints);
+}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    (() => {
+        const prices = @Html.Raw(priceDataJson);
+        if (!prices || prices.length === 0) {
+            return;
+        }
+
+        const markers = @Html.Raw(markerDataJson) || [];
+        const equity = @Html.Raw(equityDataJson) || [];
+        const markerByDate = new Map(markers.map(marker => [marker.Date, marker]));
+
+        const labels = prices.map(x => x.Date);
+        const closeSeries = prices.map(x => Number(x.Close));
+        const markerSeries = prices.map(point => {
+            const marker = markerByDate.get(point.Date);
+            return marker ? Number(marker.Price) : null;
+        });
+        const markerColors = prices.map(point => markerByDate.get(point.Date)?.Color ?? "transparent");
+        const markerStyles = prices.map(point => markerByDate.get(point.Date)?.Shape ?? false);
+        const equitySeries = labels.map(date => {
+            const hit = equity.find(x => x.Date === date);
+            return hit ? Number(hit.Equity) : null;
+        });
+
+        const context = document.getElementById("backtestChart");
+        if (!context) {
+            return;
+        }
+
+        new Chart(context, {
+            type: "line",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Close", data: closeSeries, borderColor: "#3b82f6", yAxisID: "y", tension: 0.2, pointRadius: 0 },
+                    { label: "Equity", data: equitySeries, borderColor: "#9333ea", yAxisID: "y1", tension: 0.2, pointRadius: 0 },
+                    { label: "Signals", data: markerSeries, borderColor: "transparent", backgroundColor: markerColors, pointRadius: 6, pointStyle: markerStyles, showLine: false, yAxisID: "y" }
+                ]
+            },
+            options: {
+                interaction: {
+                    mode: "index",
+                    intersect: false
+                },
+                scales: {
+                    y: { position: "left", title: { display: true, text: "Prix" } },
+                    y1: { position: "right", title: { display: true, text: "Equity" }, grid: { drawOnChartArea: false } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            afterBody: (items) => {
+                                const current = items?.[0];
+                                if (!current) {
+                                    return [];
+                                }
+
+                                const date = labels[current.dataIndex];
+                                const marker = markerByDate.get(date);
+                                if (!marker) {
+                                    return [];
+                                }
+
+                                return [`Signal: ${marker.SignalType}`, `Raison: ${marker.Reason}`];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    })();
+</script>

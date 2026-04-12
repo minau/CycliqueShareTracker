@@ -1,5 +1,6 @@
 using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
+using CycliqueShareTracker.Application.Trading;
 using CycliqueShareTracker.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,13 +12,16 @@ public class HomeController : Controller
 {
     private readonly IDashboardService _dashboardService;
     private readonly IDataSyncService _dataSyncService;
+    private readonly IBacktestService _backtestService;
 
     public HomeController(
         IDashboardService dashboardService,
-        IDataSyncService dataSyncService)
+        IDataSyncService dataSyncService,
+        IBacktestService backtestService)
     {
         _dashboardService = dashboardService;
         _dataSyncService = dataSyncService;
+        _backtestService = backtestService;
     }
 
     [HttpGet]
@@ -116,6 +120,46 @@ public class HomeController : Controller
     public IActionResult Documentation([FromQuery] AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion)
     {
         return View(true);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Backtest(
+        [FromQuery] string? symbol,
+        [FromQuery] DateOnly? startDate,
+        [FromQuery] DateOnly? endDate,
+        [FromQuery] decimal? initialCapital,
+        [FromQuery] decimal? fixedAmountPerTrade,
+        [FromQuery] decimal? feePerTrade,
+        [FromQuery] decimal? slippagePercent,
+        [FromQuery] bool forceCloseOnPeriodEnd = true,
+        [FromQuery] bool run = false,
+        CancellationToken cancellationToken = default)
+    {
+        var symbols = _backtestService.GetTrackedSymbols();
+        var defaultEnd = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var defaultStart = defaultEnd.AddYears(-1);
+        if (!run)
+        {
+            var defaultModel = BacktestViewModel.CreateDefault(symbols, defaultStart, defaultEnd);
+            return View(defaultModel);
+        }
+
+        var selectedSymbol = string.IsNullOrWhiteSpace(symbol) ? symbols.FirstOrDefault() ?? string.Empty : symbol;
+        var safeStart = startDate ?? defaultStart;
+        var safeEnd = endDate ?? defaultEnd;
+        var parameters = new BacktestParameters(
+            selectedSymbol,
+            safeStart,
+            safeEnd,
+            initialCapital ?? 10_000m,
+            fixedAmountPerTrade ?? 1_000m,
+            feePerTrade ?? 0m,
+            slippagePercent ?? 0m,
+            forceCloseOnPeriodEnd);
+
+        var result = await _backtestService.RunAsync(parameters, cancellationToken);
+        var model = BacktestViewModel.FromResult(result, symbols);
+        return View(model);
     }
 
     private static IEnumerable<WatchlistItemViewModel> ApplySort(IEnumerable<WatchlistItemViewModel> items, string sortBy)
