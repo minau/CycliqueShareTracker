@@ -6,13 +6,28 @@ public sealed class WatchlistOptions
     public static IReadOnlyList<TrackedAssetOptions> DefaultAssets { get; } = new List<TrackedAssetOptions>
     {
         new() { Symbol = "TTE.PA", Name = "TotalEnergies", Sector = "Energy", Market = "Euronext Paris" },
-        new() { Symbol = "CAT", Name = "Caterpillar", Sector = "Industrials", Market = "NYSE" },
-        new() { Symbol = "NXPI", Name = "NXP Semiconductors", Sector = "Semiconductors", Market = "NASDAQ" },
-        new() { Symbol = "DAL", Name = "Delta Air Lines", Sector = "Airlines", Market = "NYSE" },
-        new() { Symbol = "PHM", Name = "PulteGroup", Sector = "Homebuilding", Market = "NYSE" }
+        new() { Symbol = "SU.PA", Name = "Schneider Electric", Sector = "Industrials", Market = "Euronext Paris" },
+        new() { Symbol = "GLE.PA", Name = "Société Générale", Sector = "Financial Services", Market = "Euronext Paris" },
+        new() { Symbol = "BNP.PA", Name = "BNP Paribas", Sector = "Financial Services", Market = "Euronext Paris" },
+        new() { Symbol = "GOOGL", Name = "Alphabet", Sector = "Communication Services", Market = "NASDAQ" },
+        new() { Symbol = "TSLA", Name = "Tesla", Sector = "Automotive", Market = "NASDAQ" },
+        new() { Symbol = "CAC40", Name = "CAC 40", Sector = "Index", Market = "Euronext Paris" }
     };
 
     public List<TrackedAssetOptions> Assets { get; set; } = new();
+
+    public static IReadOnlyList<TrackedAssetOptions> BuildTrackedAssets(IReadOnlyList<TrackedAssetOptions>? configuredAssets)
+    {
+        var source = configuredAssets is { Count: > 0 }
+            ? configuredAssets
+            : DefaultAssets;
+
+        return source
+            .Where(asset => !string.IsNullOrWhiteSpace(asset.Symbol))
+            .GroupBy(asset => asset.Symbol.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+    }
 }
 
 public sealed class TrackedAssetOptions
