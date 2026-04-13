@@ -138,20 +138,19 @@ public sealed class DashboardService : IDashboardService
                 continue;
             }
 
-            foreach (var action in result.Actions.Where(x => x.Status is TradeExecutionStatus.Executed or TradeExecutionStatus.PendingWindow))
+            var signals = new[] { result.EntrySignal, result.ExitSignal }.Where(x => x is not null).Cast<TradeSignal>();
+            foreach (var signal in signals)
             {
-                var verticalPrice = action.SignalType is TradeSignalType.Long or TradeSignalType.LeaveShort
+                var verticalPrice = signal.Type is TradeSignalType.Long or TradeSignalType.LeaveShort
                     ? point.Low
                     : point.High;
-                var actionText = action.Status == TradeExecutionStatus.PendingWindow
-                    ? $"{action.ActionType} (pending fenêtre 18:04-18:20)"
-                    : action.ActionType.ToString();
+                var actionText = signal.IsEntry ? "Signal entrée" : "Signal sortie";
 
                 markers.Add(new TradeMarker(
                     result.Date,
-                    action.SignalType,
+                    signal.Type,
                     verticalPrice,
-                    action.Reason,
+                    signal.Reason,
                     actionText,
                     FormatPosition(result.PositionAfter)));
             }

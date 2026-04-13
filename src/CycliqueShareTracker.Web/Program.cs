@@ -36,6 +36,7 @@ builder.Services.AddScoped<ISignalAlgorithm, CycliqueShareTracker.Application.Al
 builder.Services.AddScoped<ISignalAlgorithmRegistry, SignalAlgorithmRegistry>();
 builder.Services.AddScoped<IDataSyncService, DataSyncService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBacktestService, BacktestService>();
 builder.Services.AddSingleton<IPositionStore, InMemoryPositionStore>();
 builder.Services.AddSingleton<ITradeExecutionLedger, InMemoryTradeExecutionLedger>();
 builder.Services.AddSingleton<ITradingClock, SystemTradingClock>();

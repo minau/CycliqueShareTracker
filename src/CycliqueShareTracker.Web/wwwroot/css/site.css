@@ -136,3 +136,59 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
     align-items: center;
     margin-bottom: 0.8rem;
 }
+
+.backtest-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.8rem;
+    align-items: end;
+}
+
+.backtest-form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.signal-pill {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.signal-pill-long {
+    color: #052e16;
+    background: #bbf7d0;
+}
+
+.signal-pill-short {
+    color: #450a0a;
+    background: #fecaca;
+}
+
+.signal-pill-leave {
+    color: #713f12;
+    background: #fef08a;
+}
+
+.signal-pill-leave-long {
+    color: #78350f;
+    background: #fed7aa;
+}
+
+.signal-pill-leave-short {
+    color: #713f12;
+    background: #fef08a;
+}
+
+.dashboard-trade-legend {
+    margin: 0.4rem 0 0.8rem;
+}
+
+body.backtest-chart-pan-active {
+    cursor: grabbing;
+    user-select: none;
+}

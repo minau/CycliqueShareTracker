@@ -1,0 +1,380 @@
+@model BacktestViewModel
+@using System.Text.Json
+
+<section class="card">
+    <h2>Backtest des signaux</h2>
+    <form method="get" asp-action="Backtest" class="backtest-form-grid">
+        <input type="hidden" name="run" value="true" />
+        <label>
+            Titre
+            <select name="symbol">
+                @foreach (var symbol in Model.AvailableSymbols)
+                {
+                    if (symbol == Model.SelectedSymbol)
+                    {
+                        <option selected="selected" value="@symbol">@symbol</option>
+                    }
+                    else
+                    {
+                        <option value="@symbol">@symbol</option>
+                    }
+                }
+            </select>
+        </label>
+        <label>
+            Date début
+            <input type="date" name="startDate" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+        </label>
+        <label>
+            Date fin
+            <input type="date" name="endDate" value="@Model.EndDate.ToString("yyyy-MM-dd")" />
+        </label>
+        <label>
+            Capital initial
+            <input type="number" step="0.01" min="0" name="initialCapital" value="@Model.InitialCapital" />
+        </label>
+        <label>
+            Montant fixe / trade
+            <input type="number" step="0.01" min="0" name="fixedAmountPerTrade" value="@Model.FixedAmountPerTrade" />
+        </label>
+        <label>
+            Frais / trade
+            <input type="number" step="0.01" min="0" name="feePerTrade" value="@Model.FeePerTrade" />
+        </label>
+        <label>
+            Slippage (%)
+            <input type="number" step="0.01" min="0" name="slippagePercent" value="@Model.SlippagePercent" />
+        </label>
+        <label>
+            Clôture fin période
+            <select name="forceCloseOnPeriodEnd">
+                @if (Model.ForceCloseOnPeriodEnd)
+                {
+                    <option value="true" selected="selected">Oui</option>
+                    <option value="false">Non</option>
+                }
+                else
+                {
+                    <option value="true">Oui</option>
+                    <option value="false" selected="selected">Non</option>
+                }
+            </select>
+        </label>
+        <button type="submit">Lancer le backtest</button>
+    </form>
+</section>
+
+@if (Model.HasResult && Model.Summary is not null)
+{
+    <section class="grid">
+        <div class="card">
+            <h3>Résultats synthétiques</h3>
+            <ul>
+                <li>Trades: @Model.Summary.TotalTrades</li>
+                <li>Gagnants: @Model.Summary.WinningTrades</li>
+                <li>Perdants: @Model.Summary.LosingTrades</li>
+                <li>Win rate: @Model.Summary.WinRatePercent.ToString("F2")%</li>
+                <li>PnL total: @Model.Summary.TotalPnl.ToString("F2")</li>
+                <li>PnL moyen / trade: @Model.Summary.AveragePnlPerTrade.ToString("F2")</li>
+                <li>Perf cumulée: @Model.Summary.CumulativePerformancePercent.ToString("F2")%</li>
+                <li>Drawdown max: @Model.Summary.MaxDrawdownPercent.ToString("F2")%</li>
+                <li>Capital final: @Model.Summary.FinalCapital.ToString("F2")</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="card">
+        <h3>Graphique prix + marqueurs + equity</h3>
+        <p>
+            <strong>Signaux mis en avant :</strong>
+            <span class="signal-pill signal-pill-long">LONG</span>
+            <span class="signal-pill signal-pill-short">SHORT</span>
+            <span class="signal-pill signal-pill-leave">LEAVE_LONG / LEAVE_SHORT</span>
+        </p>
+        <canvas id="backtestChart" height="140"></canvas>
+    </section>
+
+    <section class="card">
+        <h3>Liste des trades simulés</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Entrée</th>
+                    <th>Sortie</th>
+                    <th>Sens</th>
+                    <th>Produit</th>
+                    <th>Prix entrée</th>
+                    <th>Prix sortie</th>
+                    <th>Quantité</th>
+                    <th>PnL brut</th>
+                    <th>PnL net</th>
+                    <th>Perf</th>
+                    <th>Raison entrée</th>
+                    <th>Raison sortie</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var trade in Model.Trades)
+            {
+                <tr>
+                    <td>@trade.EntryDate</td>
+                    <td>@trade.ExitDate</td>
+                    <td>@trade.Side</td>
+                    <td>@trade.Product</td>
+                    <td>@trade.EntryPrice.ToString("F2")</td>
+                    <td>@trade.ExitPrice.ToString("F2")</td>
+                    <td>@trade.Quantity.ToString("F4")</td>
+                    <td>@trade.GrossPnl.ToString("F2")</td>
+                    <td>@trade.NetPnl.ToString("F2")</td>
+                    <td>@trade.ReturnPercent.ToString("F2")%</td>
+                    <td>@trade.EntryReason</td>
+                    <td>@trade.ExitReason</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </section>
+}
+
+@{
+    var priceDataJson = JsonSerializer.Serialize(Model.PricePoints);
+    var markerDataJson = JsonSerializer.Serialize(Model.Markers);
+    var equityDataJson = JsonSerializer.Serialize(Model.EquityPoints);
+}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script>
+    (() => {
+        const prices = @Html.Raw(priceDataJson);
+        if (!prices || prices.length === 0) {
+            return;
+        }
+
+        const markers = @Html.Raw(markerDataJson) || [];
+        const equity = @Html.Raw(equityDataJson) || [];
+        const markerByDate = new Map(markers.map(marker => [marker.Date, marker]));
+        const longMarkers = markers.filter(x => x.SignalType === "Long").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const shortMarkers = markers.filter(x => x.SignalType === "Short").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const leaveLongMarkers = markers.filter(x => x.SignalType === "LeaveLong").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const leaveShortMarkers = markers.filter(x => x.SignalType === "LeaveShort").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+
+        const labels = prices.map(x => x.Date);
+        const closeSeries = prices.map(x => Number(x.Close));
+        const equitySeries = labels.map(date => {
+            const hit = equity.find(x => x.Date === date);
+            return hit ? Number(hit.Equity) : null;
+        });
+
+        const context = document.getElementById("backtestChart");
+        if (!context) {
+            return;
+        }
+
+        const chart = new Chart(context, {
+            type: "line",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Close", data: closeSeries, borderColor: "#3b82f6", yAxisID: "y", tension: 0.2, pointRadius: 0 },
+                    { label: "Equity", data: equitySeries, borderColor: "#9333ea", yAxisID: "y1", tension: 0.2, pointRadius: 0 },
+                    {
+                        label: "LONG",
+                        type: "scatter",
+                        data: longMarkers,
+                        borderColor: "#16a34a",
+                        backgroundColor: "#16a34a",
+                        pointStyle: "triangle",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#052e16",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "SHORT",
+                        type: "scatter",
+                        data: shortMarkers,
+                        borderColor: "#dc2626",
+                        backgroundColor: "#dc2626",
+                        pointStyle: "triangle",
+                        pointRotation: 180,
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#450a0a",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "LEAVE_LONG",
+                        type: "scatter",
+                        data: leaveLongMarkers,
+                        borderColor: "#f59e0b",
+                        backgroundColor: "#f59e0b",
+                        pointStyle: "rectRot",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#78350f",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "LEAVE_SHORT",
+                        type: "scatter",
+                        data: leaveShortMarkers,
+                        borderColor: "#facc15",
+                        backgroundColor: "#facc15",
+                        pointStyle: "rectRot",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#713f12",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    }
+                ]
+            },
+            options: {
+                interaction: {
+                    mode: "index",
+                    intersect: false
+                },
+                plugins: {
+                    zoom: {
+                        pan: {
+                            enabled: false,
+                            mode: "x"
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: "x"
+                        },
+                        limits: {
+                            x: {
+                                minRange: 10
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                if (context.dataset.type === "scatter") {
+                                    return `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`;
+                                }
+
+                                return `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`;
+                            },
+                            afterBody: (items) => {
+                                const current = items?.[0];
+                                if (!current) {
+                                    return [];
+                                }
+
+                                const date = labels[current.dataIndex];
+                                const marker = markerByDate.get(date);
+                                if (!marker) {
+                                    return [];
+                                }
+
+                                return [`Signal: ${marker.SignalType}`, `Prix: ${Number(marker.Price).toFixed(2)}`, `Raison: ${marker.Reason}`];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { position: "left", title: { display: true, text: "Prix" } },
+                    y1: { position: "right", title: { display: true, text: "Equity" }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartMin = 0;
+        let dragStartMax = 0;
+
+        const getVisibleRange = () => {
+            const xScale = chart.scales.x;
+            if (!xScale) {
+                return null;
+            }
+
+            const min = Number(xScale.min);
+            const max = Number(xScale.max);
+            if (Number.isNaN(min) || Number.isNaN(max)) {
+                return null;
+            }
+
+            return { min, max, xScale };
+        };
+
+        const applyRange = (min, max) => {
+            chart.options.scales.x.min = min;
+            chart.options.scales.x.max = max;
+            chart.update("none");
+        };
+
+        const onMouseMove = event => {
+            if (!isDragging) {
+                return;
+            }
+
+            const currentRange = getVisibleRange();
+            if (!currentRange) {
+                return;
+            }
+
+            const pixelSpan = currentRange.xScale.right - currentRange.xScale.left;
+            if (pixelSpan <= 0) {
+                return;
+            }
+
+            const indexSpan = dragStartMax - dragStartMin;
+            if (indexSpan <= 0) {
+                return;
+            }
+
+            const deltaX = event.clientX - dragStartX;
+            const shift = -(deltaX / pixelSpan) * indexSpan;
+            const maxIndex = labels.length - 1;
+            const maxMin = Math.max(0, maxIndex - indexSpan);
+            const targetMin = Math.min(maxMin, Math.max(0, dragStartMin + shift));
+            const targetMax = targetMin + indexSpan;
+            applyRange(targetMin, targetMax);
+        };
+
+        const stopDragging = () => {
+            if (!isDragging) {
+                return;
+            }
+
+            isDragging = false;
+            document.body.classList.remove("backtest-chart-pan-active");
+            window.removeEventListener("mousemove", onMouseMove);
+            window.removeEventListener("mouseup", stopDragging);
+        };
+
+        context.addEventListener("mousedown", event => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            const currentRange = getVisibleRange();
+            if (!currentRange) {
+                return;
+            }
+
+            dragStartX = event.clientX;
+            dragStartMin = currentRange.min;
+            dragStartMax = currentRange.max;
+            isDragging = true;
+            document.body.classList.add("backtest-chart-pan-active");
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", stopDragging);
+        });
+    })();
+</script>
