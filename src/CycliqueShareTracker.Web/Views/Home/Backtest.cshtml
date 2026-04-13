@@ -85,6 +85,12 @@
 
     <section class="card">
         <h3>Graphique prix + marqueurs + equity</h3>
+        <p>
+            <strong>Signaux mis en avant :</strong>
+            <span class="signal-pill signal-pill-long">LONG</span>
+            <span class="signal-pill signal-pill-short">SHORT</span>
+            <span class="signal-pill signal-pill-leave">LEAVE_LONG / LEAVE_SHORT</span>
+        </p>
         <canvas id="backtestChart" height="140"></canvas>
     </section>
 
@@ -146,15 +152,13 @@
         const markers = @Html.Raw(markerDataJson) || [];
         const equity = @Html.Raw(equityDataJson) || [];
         const markerByDate = new Map(markers.map(marker => [marker.Date, marker]));
+        const longMarkers = markers.filter(x => x.SignalType === "Long").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const shortMarkers = markers.filter(x => x.SignalType === "Short").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const leaveLongMarkers = markers.filter(x => x.SignalType === "LeaveLong").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
+        const leaveShortMarkers = markers.filter(x => x.SignalType === "LeaveShort").map(x => ({ x: x.Date, y: Number(x.Price), reason: x.Reason }));
 
         const labels = prices.map(x => x.Date);
         const closeSeries = prices.map(x => Number(x.Close));
-        const markerSeries = prices.map(point => {
-            const marker = markerByDate.get(point.Date);
-            return marker ? Number(marker.Price) : null;
-        });
-        const markerColors = prices.map(point => markerByDate.get(point.Date)?.Color ?? "transparent");
-        const markerStyles = prices.map(point => markerByDate.get(point.Date)?.Shape ?? false);
         const equitySeries = labels.map(date => {
             const hit = equity.find(x => x.Date === date);
             return hit ? Number(hit.Equity) : null;
@@ -172,7 +176,59 @@
                 datasets: [
                     { label: "Close", data: closeSeries, borderColor: "#3b82f6", yAxisID: "y", tension: 0.2, pointRadius: 0 },
                     { label: "Equity", data: equitySeries, borderColor: "#9333ea", yAxisID: "y1", tension: 0.2, pointRadius: 0 },
-                    { label: "Signals", data: markerSeries, borderColor: "transparent", backgroundColor: markerColors, pointRadius: 6, pointStyle: markerStyles, showLine: false, yAxisID: "y" }
+                    {
+                        label: "LONG",
+                        type: "scatter",
+                        data: longMarkers,
+                        borderColor: "#16a34a",
+                        backgroundColor: "#16a34a",
+                        pointStyle: "triangle",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#052e16",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "SHORT",
+                        type: "scatter",
+                        data: shortMarkers,
+                        borderColor: "#dc2626",
+                        backgroundColor: "#dc2626",
+                        pointStyle: "triangle",
+                        pointRotation: 180,
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#450a0a",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "LEAVE_LONG",
+                        type: "scatter",
+                        data: leaveLongMarkers,
+                        borderColor: "#f59e0b",
+                        backgroundColor: "#f59e0b",
+                        pointStyle: "rectRot",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#78350f",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "LEAVE_SHORT",
+                        type: "scatter",
+                        data: leaveShortMarkers,
+                        borderColor: "#facc15",
+                        backgroundColor: "#facc15",
+                        pointStyle: "rectRot",
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        pointBorderColor: "#713f12",
+                        pointBorderWidth: 2,
+                        yAxisID: "y"
+                    }
                 ]
             },
             options: {
@@ -187,6 +243,13 @@
                 plugins: {
                     tooltip: {
                         callbacks: {
+                            label: (context) => {
+                                if (context.dataset.type === "scatter") {
+                                    return `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`;
+                                }
+
+                                return `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`;
+                            },
                             afterBody: (items) => {
                                 const current = items?.[0];
                                 if (!current) {
@@ -199,7 +262,7 @@
                                     return [];
                                 }
 
-                                return [`Signal: ${marker.SignalType}`, `Raison: ${marker.Reason}`];
+                                return [`Signal: ${marker.SignalType}`, `Prix: ${Number(marker.Price).toFixed(2)}`, `Raison: ${marker.Reason}`];
                             }
                         }
                     }

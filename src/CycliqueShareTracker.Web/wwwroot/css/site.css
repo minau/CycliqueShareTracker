@@ -149,3 +149,27 @@ button { padding: .5rem .75rem; border: 0; border-radius: 4px; background: #2563
     flex-direction: column;
     gap: 0.3rem;
 }
+
+.signal-pill {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.signal-pill-long {
+    color: #052e16;
+    background: #bbf7d0;
+}
+
+.signal-pill-short {
+    color: #450a0a;
+    background: #fecaca;
+}
+
+.signal-pill-leave {
+    color: #713f12;
+    background: #fef08a;
+}
