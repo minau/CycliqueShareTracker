@@ -10,14 +10,14 @@ namespace CycliqueShareTracker.Tests;
 public sealed class DashboardServiceTests
 {
     [Fact]
-    public async Task GetSnapshotAsync_ShouldUseConfiguredHistoryDays()
+    public async Task GetSnapshotAsync_ShouldRequestWarmupPeriodForIndicators()
     {
         var priceRepository = new FakePriceRepository();
         var service = CreateService(priceRepository, historyDays: 252);
 
         _ = await service.GetSnapshotAsync("TTE.PA");
 
-        Assert.Equal(252, priceRepository.LastRequestedMaxRows);
+        Assert.Equal(452, priceRepository.LastRequestedMaxRows);
     }
 
     [Fact]

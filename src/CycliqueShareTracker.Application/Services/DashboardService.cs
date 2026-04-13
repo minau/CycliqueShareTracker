@@ -8,6 +8,7 @@ namespace CycliqueShareTracker.Application.Services;
 public sealed class DashboardService : IDashboardService
 {
     private const int DefaultHistoryDays = 252;
+    private const int IndicatorWarmupDays = 200;
     private readonly IAssetRepository _assetRepository;
     private readonly IPriceRepository _priceRepository;
     private readonly ISignalAlgorithmRegistry _algorithmRegistry;
@@ -62,21 +63,23 @@ public sealed class DashboardService : IDashboardService
         var asset = await _assetRepository.GetOrCreateAsync(trackedAsset.Symbol, trackedAsset.Name, trackedAsset.Market, cancellationToken);
         var latestPrice = await _priceRepository.GetLatestAsync(asset.Id, cancellationToken);
         var historyDays = _dashboardOptions.HistoryDays > 0 ? _dashboardOptions.HistoryDays : DefaultHistoryDays;
-        var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, historyDays, cancellationToken);
+        var requiredRows = historyDays + IndicatorWarmupDays;
+        var recentPrices = await _priceRepository.GetPricesAsync(asset.Id, requiredRows, cancellationToken);
         var ordered = recentPrices.OrderBy(x => x.Date).ToList();
+        var visiblePrices = ordered.TakeLast(historyDays).ToList();
         var orderedBars = ordered.Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume)).ToList();
         var computedList = _indicatorCalculator.Compute(orderedBars);
         var computedByDate = computedList.ToDictionary(x => x.Date);
         var algorithm = _algorithmRegistry.Get(algorithmType);
 
         decimal? dayChange = null;
-        var orderedDesc = recentPrices.OrderByDescending(x => x.Date).ToList();
+        var orderedDesc = ordered.OrderByDescending(x => x.Date).ToList();
         if (orderedDesc.Count >= 2 && orderedDesc[1].Close != 0)
         {
             dayChange = ((orderedDesc[0].Close / orderedDesc[1].Close) - 1m) * 100m;
         }
 
-        var chartPoints = ordered.Select(price =>
+        var chartPoints = visiblePrices.Select(price =>
         {
             computedByDate.TryGetValue(price.Date, out var indicator);
 
