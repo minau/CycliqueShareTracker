@@ -142,6 +142,8 @@
     var equityDataJson = JsonSerializer.Serialize(Model.EquityPoints);
 }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
     (() => {
         const prices = @Html.Raw(priceDataJson);
@@ -169,7 +171,7 @@
             return;
         }
 
-        new Chart(context, {
+        const chart = new Chart(context, {
             type: "line",
             data: {
                 labels,
@@ -236,11 +238,27 @@
                     mode: "index",
                     intersect: false
                 },
-                scales: {
-                    y: { position: "left", title: { display: true, text: "Prix" } },
-                    y1: { position: "right", title: { display: true, text: "Equity" }, grid: { drawOnChartArea: false } }
-                },
                 plugins: {
+                    zoom: {
+                        pan: {
+                            enabled: false,
+                            mode: "x"
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: "x"
+                        },
+                        limits: {
+                            x: {
+                                minRange: 10
+                            }
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             label: (context) => {
@@ -266,8 +284,97 @@
                             }
                         }
                     }
+                },
+                scales: {
+                    y: { position: "left", title: { display: true, text: "Prix" } },
+                    y1: { position: "right", title: { display: true, text: "Equity" }, grid: { drawOnChartArea: false } }
                 }
             }
+        });
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartMin = 0;
+        let dragStartMax = 0;
+
+        const getVisibleRange = () => {
+            const xScale = chart.scales.x;
+            if (!xScale) {
+                return null;
+            }
+
+            const min = Number(xScale.min);
+            const max = Number(xScale.max);
+            if (Number.isNaN(min) || Number.isNaN(max)) {
+                return null;
+            }
+
+            return { min, max, xScale };
+        };
+
+        const applyRange = (min, max) => {
+            chart.options.scales.x.min = min;
+            chart.options.scales.x.max = max;
+            chart.update("none");
+        };
+
+        const onMouseMove = event => {
+            if (!isDragging) {
+                return;
+            }
+
+            const currentRange = getVisibleRange();
+            if (!currentRange) {
+                return;
+            }
+
+            const pixelSpan = currentRange.xScale.right - currentRange.xScale.left;
+            if (pixelSpan <= 0) {
+                return;
+            }
+
+            const indexSpan = dragStartMax - dragStartMin;
+            if (indexSpan <= 0) {
+                return;
+            }
+
+            const deltaX = event.clientX - dragStartX;
+            const shift = -(deltaX / pixelSpan) * indexSpan;
+            const maxIndex = labels.length - 1;
+            const maxMin = Math.max(0, maxIndex - indexSpan);
+            const targetMin = Math.min(maxMin, Math.max(0, dragStartMin + shift));
+            const targetMax = targetMin + indexSpan;
+            applyRange(targetMin, targetMax);
+        };
+
+        const stopDragging = () => {
+            if (!isDragging) {
+                return;
+            }
+
+            isDragging = false;
+            document.body.classList.remove("backtest-chart-pan-active");
+            window.removeEventListener("mousemove", onMouseMove);
+            window.removeEventListener("mouseup", stopDragging);
+        };
+
+        context.addEventListener("mousedown", event => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            const currentRange = getVisibleRange();
+            if (!currentRange) {
+                return;
+            }
+
+            dragStartX = event.clientX;
+            dragStartMin = currentRange.min;
+            dragStartMax = currentRange.max;
+            isDragging = true;
+            document.body.classList.add("backtest-chart-pan-active");
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", stopDragging);
         });
     })();
 </script>
