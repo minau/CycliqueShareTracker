@@ -150,7 +150,39 @@
                 return '#dc2626';
             }
 
-            return '#f59e0b';
+            if (marker.SignalType === 'LeaveLong') {
+                return '#f59e0b';
+            }
+
+            if (marker.SignalType === 'LeaveShort') {
+                return '#facc15';
+            }
+
+            return '#64748b';
+        });
+        const tradeMarkerBorderColors = points.map(point => {
+            const marker = markerByDate.get(point.Date);
+            if (!marker) {
+                return 'transparent';
+            }
+
+            if (marker.SignalType === 'Long') {
+                return '#052e16';
+            }
+
+            if (marker.SignalType === 'Short') {
+                return '#450a0a';
+            }
+
+            if (marker.SignalType === 'LeaveLong') {
+                return '#78350f';
+            }
+
+            if (marker.SignalType === 'LeaveShort') {
+                return '#713f12';
+            }
+
+            return '#334155';
         });
         const tradeMarkerStyles = points.map(point => {
             const marker = markerByDate.get(point.Date);
@@ -158,7 +190,19 @@
                 return false;
             }
 
-            return marker.SignalType === 'LeaveLong' || marker.SignalType === 'LeaveShort' ? 'triangle' : 'rectRot';
+            if (marker.SignalType === 'Long' || marker.SignalType === 'Short') {
+                return 'triangle';
+            }
+
+            return 'rectRot';
+        });
+        const tradeMarkerRotations = points.map(point => {
+            const marker = markerByDate.get(point.Date);
+            if (!marker) {
+                return 0;
+            }
+
+            return marker.SignalType === 'Short' ? 180 : 0;
         });
         const macdHistogramColors = macdHistogramData.map(value => {
             if (value === null) {
@@ -463,11 +507,14 @@
                         type: 'line',
                         data: tradeMarkerData,
                         showLine: false,
-                        pointRadius: 7,
-                        pointHoverRadius: 9,
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
                         pointStyle: tradeMarkerStyles,
                         backgroundColor: tradeMarkerColors,
-                        borderColor: tradeMarkerColors,
+                        borderColor: tradeMarkerBorderColors,
+                        pointBorderColor: tradeMarkerBorderColors,
+                        pointBorderWidth: 2,
+                        pointRotation: tradeMarkerRotations,
                         order: 4
                     },
                     ]
