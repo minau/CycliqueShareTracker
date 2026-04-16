@@ -220,3 +220,38 @@ body.backtest-chart-pan-active {
     color: #b91c1c;
     font-weight: 700;
 }
+
+.indicator-settings-card .muted {
+    color: #64748b;
+    margin-top: -0.4rem;
+    margin-bottom: 0.8rem;
+}
+
+.indicator-settings-form .settings-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.indicator-settings-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+}
+
+.indicator-settings-form input[type="number"] {
+    padding: 0.4rem 0.5rem;
+}
+
+.settings-actions {
+    margin-top: 0.8rem;
+}
+
+.inline-form {
+    margin-top: 0.6rem;
+}
+
+button.secondary {
+    background: #475569;
+}

@@ -23,6 +23,14 @@ public sealed class DashboardViewModel
     public string ActiveAlgorithmType { get; init; } = "RsiMeanReversion";
     public string ActiveAlgorithmName { get; init; } = "RSI Mean Reversion";
     public string? Notice { get; init; }
+    public decimal ParabolicSarStep { get; init; }
+    public decimal ParabolicSarMax { get; init; }
+    public int BollingerPeriod { get; init; }
+    public decimal BollingerStdDev { get; init; }
+    public int MacdFastPeriod { get; init; }
+    public int MacdSlowPeriod { get; init; }
+    public int MacdSignalPeriod { get; init; }
+    public DateTime IndicatorSettingsUpdatedAtUtc { get; init; }
     public IReadOnlyList<DashboardChartPointViewModel> ChartPoints { get; init; } = Array.Empty<DashboardChartPointViewModel>();
     public IReadOnlyList<TradeMarkerViewModel> TradeMarkers { get; init; } = Array.Empty<TradeMarkerViewModel>();
     public PositionSide CurrentPositionSide { get; init; }
@@ -55,6 +63,14 @@ public sealed class DashboardViewModel
             ActiveAlgorithmType = snapshot.AlgorithmType.ToString(),
             ActiveAlgorithmName = snapshot.AlgorithmName,
             Notice = notice,
+            ParabolicSarStep = snapshot.IndicatorSettings.ParabolicSarStep,
+            ParabolicSarMax = snapshot.IndicatorSettings.ParabolicSarMax,
+            BollingerPeriod = snapshot.IndicatorSettings.BollingerPeriod,
+            BollingerStdDev = snapshot.IndicatorSettings.BollingerStdDev,
+            MacdFastPeriod = snapshot.IndicatorSettings.MacdFastPeriod,
+            MacdSlowPeriod = snapshot.IndicatorSettings.MacdSlowPeriod,
+            MacdSignalPeriod = snapshot.IndicatorSettings.MacdSignalPeriod,
+            IndicatorSettingsUpdatedAtUtc = snapshot.IndicatorSettings.UpdatedAtUtc,
             ChartPoints = snapshot.ChartPoints.Select(x => new DashboardChartPointViewModel
             {
                 Date = x.Date.ToString("yyyy-MM-dd"),

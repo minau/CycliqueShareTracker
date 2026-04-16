@@ -73,6 +73,7 @@ public sealed class DashboardServiceTests
             new IndicatorCalculator(),
             new FakeAlgorithmRegistry(),
             new SignalEngine(new InMemoryPositionStore(), new InMemoryTradeExecutionLedger(), new AlwaysClosedWindowService(), new FixedTradingClock()),
+            new FakeIndicatorSettingsService(),
             Options.Create(new WatchlistOptions
             {
                 Assets = new List<TrackedAssetOptions>
@@ -83,6 +84,19 @@ public sealed class DashboardServiceTests
             Options.Create(new DashboardOptions { HistoryDays = historyDays }));
     }
 
+
+
+    private sealed class FakeIndicatorSettingsService : IIndicatorSettingsService
+    {
+        public Task<StockIndicatorSettings> GetOrCreateAsync(string symbol, CancellationToken cancellationToken = default)
+            => Task.FromResult(StockIndicatorSettings.CreateDefault(symbol));
+
+        public Task SaveAsync(StockIndicatorSettings settings, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task ResetToDefaultAsync(string symbol, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
     private sealed class AlwaysClosedWindowService : ITradingWindowService
     {
         public bool IsInWindow(DateTimeOffset now) => false;

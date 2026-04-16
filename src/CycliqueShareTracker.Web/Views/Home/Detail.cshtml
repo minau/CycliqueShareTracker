@@ -57,6 +57,53 @@
     <button type="submit">Exporter les données en XLSX</button>
 </form>
 
+
+<section class="card indicator-settings-card">
+    <h3>Paramètres des indicateurs</h3>
+    <p class="muted">Dernière mise à jour UTC : @Model.IndicatorSettingsUpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</p>
+    <form asp-action="SaveIndicatorSettings" method="post" class="indicator-settings-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Symbol" value="@Model.AssetSymbol" />
+        <input type="hidden" name="AlgorithmType" value="@Model.ActiveAlgorithmType" />
+
+        <div class="settings-grid">
+            <label>Parabolic SAR Step
+                <input type="number" name="ParabolicSarStep" value="@Model.ParabolicSarStep" min="0.0001" step="0.0001" required />
+            </label>
+            <label>Parabolic SAR Max
+                <input type="number" name="ParabolicSarMax" value="@Model.ParabolicSarMax" min="0.0001" step="0.0001" required />
+            </label>
+            <label>Bollinger Period
+                <input type="number" name="BollingerPeriod" value="@Model.BollingerPeriod" min="2" step="1" required />
+            </label>
+            <label>Bollinger StdDev
+                <input type="number" name="BollingerStdDev" value="@Model.BollingerStdDev" min="0.1" step="0.1" required />
+            </label>
+            <label>MACD Fast
+                <input type="number" name="MacdFastPeriod" value="@Model.MacdFastPeriod" min="1" step="1" required />
+            </label>
+            <label>MACD Slow
+                <input type="number" name="MacdSlowPeriod" value="@Model.MacdSlowPeriod" min="2" step="1" required />
+            </label>
+            <label>MACD Signal
+                <input type="number" name="MacdSignalPeriod" value="@Model.MacdSignalPeriod" min="1" step="1" required />
+            </label>
+        </div>
+
+        <div class="settings-actions">
+            <button type="submit">Sauvegarder</button>
+        </div>
+    </form>
+
+    <form asp-action="ResetIndicatorSettings" method="post" class="inline-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
+        <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
+        <button type="submit" class="secondary">Réinitialiser</button>
+    </form>
+</section>
+
+
 <section class="card">
     <div class="section-header">
         <h3>Bougies & tendances (SMA50 / SMA200 / Bollinger / Parabolic SAR)</h3>

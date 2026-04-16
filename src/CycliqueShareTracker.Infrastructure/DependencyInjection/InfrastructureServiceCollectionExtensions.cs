@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Infrastructure.Persistence;
 using CycliqueShareTracker.Infrastructure.Providers;
 using CycliqueShareTracker.Infrastructure.Repositories;
+using CycliqueShareTracker.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IPriceRepository, PriceRepository>();
         services.AddScoped<IIndicatorRepository, IndicatorRepository>();
+        services.AddScoped<IIndicatorSettingsService, IndicatorSettingsService>();
 
         return services;
     }
