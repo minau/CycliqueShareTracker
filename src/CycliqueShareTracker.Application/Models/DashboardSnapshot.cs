@@ -18,6 +18,7 @@ public sealed record DashboardSnapshot(
     decimal? MacdSignalLine,
     decimal? MacdHistogram,
     IReadOnlyList<DashboardChartPoint> ChartPoints,
+    IReadOnlyList<DashboardHistoryRow> HistoryRows,
     IReadOnlyList<TradeMarker> TradeMarkers,
     TrackedPosition CurrentPosition,
     IReadOnlyList<PriceBar> RecentPrices,

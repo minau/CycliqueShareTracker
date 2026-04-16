@@ -100,6 +100,7 @@ public sealed class DashboardService : IDashboardService
                 indicator?.BollingerLower,
                 indicator?.ParabolicSar);
         }).ToList();
+        var historyRows = BuildHistoryRows(visiblePrices, computedByDate);
 
         var latestComputed = latestPrice is null ? null : computedList.FirstOrDefault(x => x.Date == latestPrice.Date);
         var dailySignals = _signalEngine.Evaluate(trackedAsset.Symbol, orderedBars, computedList);
@@ -122,11 +123,261 @@ public sealed class DashboardService : IDashboardService
             latestComputed?.MacdSignalLine,
             latestComputed?.MacdHistogram,
             chartPoints,
+            historyRows,
             markers,
             currentPosition,
             orderedBars,
             algorithmType,
             algorithm.DisplayName);
+    }
+
+    private static IReadOnlyList<DashboardHistoryRow> BuildHistoryRows(
+        IReadOnlyList<Domain.Entities.DailyPrice> orderedVisiblePrices,
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate)
+    {
+        var rows = new List<DashboardHistoryRow>(orderedVisiblePrices.Count);
+        string? previousTrendPosition = null;
+        decimal? previousSarWayChange = null;
+        decimal? previousSarJumpValue = null;
+        decimal? previousMacdDivergence = null;
+        string? previousMacdTrend = null;
+        var currentMacdTrendCount = 0;
+        int? lastVenteChangeIndex = null;
+        int? lastAchatChangeIndex = null;
+
+        for (var i = 0; i < orderedVisiblePrices.Count; i++)
+        {
+            var price = orderedVisiblePrices[i];
+            computedByDate.TryGetValue(price.Date, out var indicator);
+
+            ComputedIndicator? previousIndicator = null;
+            if (i > 0)
+            {
+                computedByDate.TryGetValue(orderedVisiblePrices[i - 1].Date, out previousIndicator);
+            }
+
+            var previousSar = previousIndicator?.ParabolicSar;
+            var sar = indicator?.ParabolicSar;
+            var sarWayChange = ComputeSarWayChange(previousSar, sar);
+            decimal? sarJumpValue = (previousSar.HasValue && sar.HasValue)
+                ? decimal.Round(Math.Abs(sar.Value - previousSar.Value), 4)
+                : null;
+            var sarNotif = ComputeSarNotification(sarWayChange, previousSarWayChange, sarJumpValue, previousSarJumpValue);
+            var trendPosition = ComputeTrendPositionOnSar(previousTrendPosition, price, i > 0 ? orderedVisiblePrices[i - 1] : null, sar, previousSar);
+            if (trendPosition == "VENTE" && trendPosition != previousTrendPosition)
+            {
+                lastVenteChangeIndex = i;
+            }
+            else if (trendPosition == "ACHAT" && trendPosition != previousTrendPosition)
+            {
+                lastAchatChangeIndex = i;
+            }
+
+            var macdDivergence = indicator?.MacdHistogram;
+            var macdTrend = ComputeMacdTrend(macdDivergence, previousMacdDivergence);
+            var macdTrendChanged = !string.IsNullOrWhiteSpace(macdTrend)
+                && !string.IsNullOrWhiteSpace(previousMacdTrend)
+                && !string.Equals(macdTrend, previousMacdTrend, StringComparison.Ordinal);
+            if (!string.IsNullOrWhiteSpace(macdTrend))
+            {
+                currentMacdTrendCount = string.Equals(macdTrend, previousMacdTrend, StringComparison.Ordinal)
+                    ? currentMacdTrendCount + 1
+                    : 1;
+            }
+            else
+            {
+                currentMacdTrendCount = 0;
+            }
+
+            rows.Add(new DashboardHistoryRow(
+                price.Date,
+                price.Open,
+                price.High,
+                price.Low,
+                price.Close,
+                sar,
+                indicator?.MacdSignalLine,
+                indicator?.MacdLine,
+                macdDivergence,
+                indicator?.Rsi14,
+                indicator?.BollingerUpper,
+                indicator?.BollingerMiddle,
+                indicator?.BollingerLower,
+                sarWayChange,
+                sarJumpValue,
+                sarNotif,
+                trendPosition,
+                ComputeRsiStrengthAbs(indicator?.Rsi14),
+                ComputeBollingerBottomUpSignal(price, indicator),
+                ComputeBollingerMiddleHitUp(price, i > 0 ? orderedVisiblePrices[i - 1] : null, indicator, previousIndicator),
+                ComputeBollingerMiddleHitDown(price, i > 0 ? orderedVisiblePrices[i - 1] : null, indicator, previousIndicator),
+                macdDivergence.HasValue ? (macdDivergence.Value > 0 ? 1 : -1) : null,
+                macdTrend,
+                currentMacdTrendCount > 0 ? currentMacdTrendCount : null,
+                macdTrendChanged ? "chg" : null,
+                lastVenteChangeIndex.HasValue ? i - lastVenteChangeIndex.Value : null,
+                lastAchatChangeIndex.HasValue ? i - lastAchatChangeIndex.Value : null));
+
+            previousSarWayChange = sarWayChange;
+            previousSarJumpValue = sarJumpValue;
+            previousTrendPosition = trendPosition;
+            previousMacdDivergence = macdDivergence;
+            previousMacdTrend = macdTrend;
+        }
+
+        return rows;
+    }
+
+    private static decimal? ComputeSarWayChange(decimal? previousSar, decimal? currentSar)
+    {
+        if (!previousSar.HasValue || !currentSar.HasValue || previousSar <= 0 || currentSar <= 0)
+        {
+            return null;
+        }
+
+        return decimal.Round((decimal)Math.Log((double)(currentSar.Value / previousSar.Value)), 6);
+    }
+
+    private static string? ComputeSarNotification(decimal? sarWayChange, decimal? previousSarWayChange, decimal? sarJumpValue, decimal? previousSarJumpValue)
+    {
+        if (!sarWayChange.HasValue)
+        {
+            return null;
+        }
+
+        if (previousSarWayChange.HasValue)
+        {
+            var signChanged = (sarWayChange.Value > 0 && previousSarWayChange.Value < 0)
+                || (sarWayChange.Value < 0 && previousSarWayChange.Value > 0);
+            if (signChanged)
+            {
+                return "chg";
+            }
+        }
+
+        if (!sarJumpValue.HasValue || !previousSarJumpValue.HasValue)
+        {
+            return null;
+        }
+
+        return sarJumpValue.Value >= previousSarJumpValue.Value ? "acc" : "dec";
+    }
+
+    private static string? ComputeTrendPositionOnSar(
+        string? previousTrendPosition,
+        Domain.Entities.DailyPrice currentPrice,
+        Domain.Entities.DailyPrice? previousPrice,
+        decimal? currentSar,
+        decimal? previousSar)
+    {
+        if (currentSar.HasValue && previousSar.HasValue && previousPrice is not null)
+        {
+            var switchedToVente = previousPrice.Close >= previousSar.Value && currentPrice.Close < currentSar.Value;
+            if (switchedToVente)
+            {
+                return "VENTE";
+            }
+
+            var switchedToAchat = previousPrice.Close <= previousSar.Value && currentPrice.Close > currentSar.Value;
+            if (switchedToAchat)
+            {
+                return "ACHAT";
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(previousTrendPosition))
+        {
+            return previousTrendPosition;
+        }
+
+        if (!currentSar.HasValue)
+        {
+            return null;
+        }
+
+        return currentPrice.Close >= currentSar.Value ? "ACHAT" : "VENTE";
+    }
+
+    private static int? ComputeRsiStrengthAbs(decimal? rsi)
+    {
+        if (!rsi.HasValue)
+        {
+            return null;
+        }
+
+        if (rsi.Value >= 70m || rsi.Value <= 30m)
+        {
+            return 3;
+        }
+
+        if (rsi.Value >= 60m || rsi.Value <= 40m)
+        {
+            return 2;
+        }
+
+        return 1;
+    }
+
+    private static string? ComputeBollingerBottomUpSignal(Domain.Entities.DailyPrice price, ComputedIndicator? indicator)
+    {
+        if (indicator?.BollingerLower is null || indicator.BollingerUpper is null)
+        {
+            return null;
+        }
+
+        if (price.Close <= indicator.BollingerLower.Value)
+        {
+            return "ACHAT";
+        }
+
+        if (price.Close >= indicator.BollingerUpper.Value)
+        {
+            return "VENTE";
+        }
+
+        return null;
+    }
+
+    private static string? ComputeBollingerMiddleHitUp(
+        Domain.Entities.DailyPrice currentPrice,
+        Domain.Entities.DailyPrice? previousPrice,
+        ComputedIndicator? indicator,
+        ComputedIndicator? previousIndicator)
+    {
+        if (previousPrice is null || indicator?.BollingerMiddle is null || previousIndicator?.BollingerMiddle is null)
+        {
+            return null;
+        }
+
+        var crossedUp = previousPrice.Close <= previousIndicator.BollingerMiddle.Value
+            && currentPrice.Close > indicator.BollingerMiddle.Value;
+        return crossedUp ? "hit" : null;
+    }
+
+    private static string? ComputeBollingerMiddleHitDown(
+        Domain.Entities.DailyPrice currentPrice,
+        Domain.Entities.DailyPrice? previousPrice,
+        ComputedIndicator? indicator,
+        ComputedIndicator? previousIndicator)
+    {
+        if (previousPrice is null || indicator?.BollingerMiddle is null || previousIndicator?.BollingerMiddle is null)
+        {
+            return null;
+        }
+
+        var crossedDown = previousPrice.Close >= previousIndicator.BollingerMiddle.Value
+            && currentPrice.Close < indicator.BollingerMiddle.Value;
+        return crossedDown ? "hit" : null;
+    }
+
+    private static string? ComputeMacdTrend(decimal? macdDivergence, decimal? previousMacdDivergence)
+    {
+        if (!macdDivergence.HasValue || !previousMacdDivergence.HasValue)
+        {
+            return null;
+        }
+
+        return macdDivergence.Value >= previousMacdDivergence.Value ? "acc2" : "dec2";
     }
 
     private static IReadOnlyList<TradeMarker> BuildTradeMarkers(IReadOnlyList<DailySignalResult> dailySignals, IReadOnlyList<DashboardChartPoint> chartPoints)
