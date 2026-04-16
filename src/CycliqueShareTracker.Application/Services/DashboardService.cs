@@ -159,7 +159,7 @@ public sealed class DashboardService : IDashboardService
             var previousSar = previousIndicator?.ParabolicSar;
             var sar = indicator?.ParabolicSar;
             var sarWayChange = ComputeSarWayChange(previousSar, sar);
-            var sarJumpValue = (previousSar.HasValue && sar.HasValue)
+            decimal? sarJumpValue = (previousSar.HasValue && sar.HasValue)
                 ? decimal.Round(Math.Abs(sar.Value - previousSar.Value), 4)
                 : null;
             var sarNotif = ComputeSarNotification(sarWayChange, previousSarWayChange, sarJumpValue, previousSarJumpValue);
