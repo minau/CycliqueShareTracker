@@ -301,7 +301,8 @@ public class HomeController : Controller
             "date", "open", "high", "low", "close", "sar", "macd/signal", "macd/macd", "macd/divergence", "rsi",
             "bb/top", "bb/middle", "bb/bottom", "SAR_WAY_CHANGE", "SAR_JUMP_VALUE", "SAR_NOTIF_CHANGE_AND_GAMMA",
             "TREND_POSITION_ON_SAR", "RSI_STRENGTH_ABS", "BB_IS_BOTTOM_UP", "BB_MID_HIT_UP", "BB_MID_HIT_DOWN",
-            "MACD_INVERSE", "MACD_TREND", "MACD_TREND_COUNT", "MACD_TREND_CHG", "COUNT_DAYS_SINCE_CHG_VENTE", "COUNT_DAYS_SINCE_CHG_ACHAT"
+            "MACD_INVERSE", "MACD_TREND", "MACD_TREND_COUNT", "MACD_TREND_CHG", "COUNT_DAYS_SINCE_CHG_VENTE", "COUNT_DAYS_SINCE_CHG_ACHAT",
+            "Signal", "SignalReason", "SignalDirection", "SignalCategory"
         };
 
         for (var i = 0; i < headers.Length; i++)
@@ -345,6 +346,10 @@ public class HomeController : Controller
             worksheet.Cell(excelRow, 25).Value = source.MacdTrendChg;
             worksheet.Cell(excelRow, 26).Value = source.CountDaysSinceChgVente;
             worksheet.Cell(excelRow, 27).Value = source.CountDaysSinceChgAchat;
+            worksheet.Cell(excelRow, 28).Value = source.SignalType.ToExportLabel();
+            worksheet.Cell(excelRow, 29).Value = source.SignalReason;
+            worksheet.Cell(excelRow, 30).Value = source.SignalDirection == SignalDirection.None ? string.Empty : source.SignalDirection.ToString().ToUpperInvariant();
+            worksheet.Cell(excelRow, 31).Value = source.SignalCategory == SignalCategory.None ? string.Empty : source.SignalCategory.ToString();
         }
 
         worksheet.Column(1).Style.DateFormat.Format = "yyyy-mm-dd";

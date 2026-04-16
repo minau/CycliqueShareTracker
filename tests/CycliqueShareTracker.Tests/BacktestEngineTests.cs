@@ -6,6 +6,20 @@ namespace CycliqueShareTracker.Tests;
 
 public sealed class BacktestEngineTests
 {
+    private static TradeSignal CreateSignal(DateOnly date, TradeSignalType type, string reason)
+    {
+        var category = TradeSignalMetadata.GetCategory(type);
+        return new TradeSignal(
+            date,
+            type,
+            reason,
+            new[] { reason },
+            category == SignalCategory.Entry,
+            category == SignalCategory.Exit,
+            TradeSignalMetadata.GetDirection(type),
+            category);
+    }
+
     [Fact]
     public void TradingSignalRules_ShouldReturnLongSignal_WhenLongConditionsAreMet()
     {
@@ -25,7 +39,7 @@ public sealed class BacktestEngineTests
     {
         var engine = new PositionEngine();
         var parameters = BacktestParameters.Default("TTE.PA", new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 10));
-        var openSignal = new TradeSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long", true, false);
+        var openSignal = CreateSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long");
         var entryBar = new PriceBar(openSignal.Date, 100m, 100m, 100m, 100m, 1000);
         var exitBar = new PriceBar(new DateOnly(2026, 1, 3), 110m, 110m, 110m, 110m, 1000);
 
@@ -42,7 +56,7 @@ public sealed class BacktestEngineTests
     {
         var engine = new PositionEngine();
         var parameters = BacktestParameters.Default("TTE.PA", new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 10));
-        var openSignal = new TradeSignal(new DateOnly(2026, 1, 2), TradeSignalType.Short, "short", true, false);
+        var openSignal = CreateSignal(new DateOnly(2026, 1, 2), TradeSignalType.Short, "short");
         var entryBar = new PriceBar(openSignal.Date, 100m, 100m, 100m, 100m, 1000);
         var exitBar = new PriceBar(new DateOnly(2026, 1, 3), 90m, 90m, 90m, 90m, 1000);
 
@@ -60,13 +74,13 @@ public sealed class BacktestEngineTests
         var engine = new PositionEngine();
         var parameters = BacktestParameters.Default("TTE.PA", new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 10));
         var longOpen = engine.ApplyEntry(
-            new TradeSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long", true, false),
+            CreateSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long"),
             new PriceBar(new DateOnly(2026, 1, 2), 100m, 100m, 100m, 100m, 1000),
             parameters,
             SimulatedPosition.Empty);
 
         var reversed = engine.ApplyEntry(
-            new TradeSignal(new DateOnly(2026, 1, 3), TradeSignalType.Short, "reverse", true, false),
+            CreateSignal(new DateOnly(2026, 1, 3), TradeSignalType.Short, "reverse"),
             new PriceBar(new DateOnly(2026, 1, 3), 95m, 95m, 95m, 95m, 1000),
             parameters,
             longOpen.ResultingPosition);
@@ -81,18 +95,18 @@ public sealed class BacktestEngineTests
         var engine = new PositionEngine();
         var parameters = BacktestParameters.Default("TTE.PA", new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 10));
         var opened = engine.ApplyEntry(
-            new TradeSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long", true, false),
+            CreateSignal(new DateOnly(2026, 1, 2), TradeSignalType.Long, "long"),
             new PriceBar(new DateOnly(2026, 1, 2), 100m, 100m, 100m, 100m, 1000),
             parameters,
             SimulatedPosition.Empty);
 
         var leaveShort = engine.TryExit(
-            new TradeSignal(new DateOnly(2026, 1, 3), TradeSignalType.LeaveShort, "leave short", false, true),
+            CreateSignal(new DateOnly(2026, 1, 3), TradeSignalType.LeaveShort, "leave short"),
             new PriceBar(new DateOnly(2026, 1, 3), 100m, 100m, 100m, 100m, 1000),
             parameters,
             opened.ResultingPosition);
         var leaveLong = engine.TryExit(
-            new TradeSignal(new DateOnly(2026, 1, 3), TradeSignalType.LeaveLong, "leave long", false, true),
+            CreateSignal(new DateOnly(2026, 1, 3), TradeSignalType.LeaveLong, "leave long"),
             new PriceBar(new DateOnly(2026, 1, 3), 100m, 100m, 100m, 100m, 1000),
             parameters,
             opened.ResultingPosition);

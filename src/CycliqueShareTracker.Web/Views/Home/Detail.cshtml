@@ -116,8 +116,8 @@
         <strong>Code trade :</strong>
         <span class="signal-pill signal-pill-long">▲ LONG</span>
         <span class="signal-pill signal-pill-short">▼ SHORT</span>
-        <span class="signal-pill signal-pill-leave-long">◆ LEAVE_LONG</span>
-        <span class="signal-pill signal-pill-leave-short">◆ LEAVE_SHORT</span>
+        <span class="signal-pill signal-pill-leave-long">◆ SELL LONG</span>
+        <span class="signal-pill signal-pill-leave-short">◆ SELL SHORT</span>
     </p>
     <div id="chartContainer" class="chart-container" data-default-height="560" data-min-height="360" data-max-height="920">
         <div class="chart-stack">
@@ -168,6 +168,10 @@
                     <th>MACD_TREND_CHG</th>
                     <th>COUNT_DAYS_SINCE_CHG_VENTE</th>
                     <th>COUNT_DAYS_SINCE_CHG_ACHAT</th>
+                    <th>Signal</th>
+                    <th>SignalReason</th>
+                    <th>SignalDirection</th>
+                    <th>SignalCategory</th>
                 </tr>
             </thead>
             <tbody>
@@ -183,6 +187,14 @@
                 {
                     "ACHAT" => "signal-buy",
                     "VENTE" => "signal-sell",
+                    _ => string.Empty
+                };
+                var tradeSignalClass = row.Signal switch
+                {
+                    "BUY LONG" => "signal-buy",
+                    "BUY SHORT" => "signal-sell",
+                    "SELL LONG" => "signal-exit-long",
+                    "SELL SHORT" => "signal-exit-short",
                     _ => string.Empty
                 };
 
@@ -214,6 +226,10 @@
                     <td>@(row.MacdTrendChg ?? "-")</td>
                     <td>@(row.CountDaysSinceChgVente?.ToString() ?? "N/A")</td>
                     <td>@(row.CountDaysSinceChgAchat?.ToString() ?? "N/A")</td>
+                    <td><span class="signal-pill @tradeSignalClass">@row.Signal</span></td>
+                    <td>@(row.SignalReason ?? "-")</td>
+                    <td>@(row.SignalDirection ?? "-")</td>
+                    <td>@(row.SignalCategory ?? "-")</td>
                 </tr>
             }
             </tbody>

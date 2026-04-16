@@ -16,12 +16,26 @@ public static class TradingSignalRules
 
         if (trendChanged && currentTrend == "VENTE" && rsiStrengthAbs >= -1m && (sarChange is "acc" or "chg") && (macdInverse == -1 || macdRatioClose))
         {
-            return new TradeSignal(bar.Date, TradeSignalType.Short, "SAR bascule VENTE + validation RSI/MACD.", true, false);
+            var reasons = new List<string>
+            {
+                TradeSignalMetadata.SarReversalDetected,
+                TradeSignalMetadata.RsiValidated,
+                TradeSignalMetadata.MacdValidated
+            };
+
+            return BuildSignal(bar.Date, TradeSignalType.Short, reasons);
         }
 
         if (trendChanged && currentTrend == "ACHAT" && rsiStrengthAbs <= 1m && (sarChange is "acc" or "chg") && (macdInverse == 1 || macdRatioClose))
         {
-            return new TradeSignal(bar.Date, TradeSignalType.Long, "SAR bascule ACHAT + validation RSI/MACD.", true, false);
+            var reasons = new List<string>
+            {
+                TradeSignalMetadata.SarReversalDetected,
+                TradeSignalMetadata.RsiValidated,
+                TradeSignalMetadata.MacdValidated
+            };
+
+            return BuildSignal(bar.Date, TradeSignalType.Long, reasons);
         }
 
         return null;
@@ -34,14 +48,19 @@ public static class TradingSignalRules
         var bbMidHitUp = ComputeBbMidHitUp(bar, current, previous);
         var bbMidHitDown = ComputeBbMidHitDown(bar, current, previous);
         var macdTrendChange = ComputeMacdTrendChange(current, previous);
+
+        // Priority is deterministic when multiple exit conditions are true:
+        // ExitTargetReached > TrendWeakening > MomentumBreakdown.
         if (trend == "ACHAT" && bbIsBottomUp == -1 && (bbMidHitUp == -1 || macdTrendChange == -1) && daysSinceBuyChange > 4)
         {
-            return new TradeSignal(bar.Date, TradeSignalType.LeaveLong, "Essoufflement du LONG (Bollinger/MACD).", false, true);
+            var reasons = BuildExitReasons(bbMidHitUp == -1, macdTrendChange == -1);
+            return BuildSignal(bar.Date, TradeSignalType.LeaveLong, reasons);
         }
 
         if (trend == "VENTE" && bbIsBottomUp == 1 && (bbMidHitDown == 1 || macdTrendChange == 1) && daysSinceSellChange > 4)
         {
-            return new TradeSignal(bar.Date, TradeSignalType.LeaveShort, "Essoufflement du SHORT (Bollinger/MACD).", false, true);
+            var reasons = BuildExitReasons(bbMidHitDown == 1, macdTrendChange == 1);
+            return BuildSignal(bar.Date, TradeSignalType.LeaveShort, reasons);
         }
 
         return null;
@@ -74,6 +93,36 @@ public static class TradingSignalRules
 
         daysSinceBuyChange = 0;
         daysSinceSellChange = 0;
+    }
+
+    private static List<string> BuildExitReasons(bool bbMidHit, bool macdTrendChanged)
+    {
+        var reasons = new List<string> { TradeSignalMetadata.ExitTargetReached };
+        if (bbMidHit)
+        {
+            reasons.Add(TradeSignalMetadata.TrendWeakening);
+        }
+
+        if (macdTrendChanged)
+        {
+            reasons.Add(TradeSignalMetadata.MomentumBreakdown);
+        }
+
+        return reasons;
+    }
+
+    private static TradeSignal BuildSignal(DateOnly date, TradeSignalType type, IReadOnlyList<string> reasons)
+    {
+        var category = TradeSignalMetadata.GetCategory(type);
+        return new TradeSignal(
+            date,
+            type,
+            TradeSignalMetadata.BuildSignalReason(reasons),
+            reasons,
+            category == SignalCategory.Entry,
+            category == SignalCategory.Exit,
+            TradeSignalMetadata.GetDirection(type),
+            category);
     }
 
     private static string GetTrendFromSar(ComputedIndicator indicator)

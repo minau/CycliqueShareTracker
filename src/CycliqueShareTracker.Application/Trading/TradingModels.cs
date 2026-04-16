@@ -9,6 +9,20 @@ public enum TradeSignalType
     LeaveShort = 4
 }
 
+public enum SignalDirection
+{
+    None = 0,
+    Long = 1,
+    Short = 2
+}
+
+public enum SignalCategory
+{
+    None = 0,
+    Entry = 1,
+    Exit = 2
+}
+
 public enum PositionSide
 {
     None = 0,
@@ -43,9 +57,15 @@ public enum TradeExecutionStatus
 public sealed record TradeSignal(
     DateOnly Date,
     TradeSignalType Type,
-    string Reason,
+    string SignalReason,
+    IReadOnlyList<string> SignalReasons,
     bool IsEntry,
-    bool IsExit);
+    bool IsExit,
+    SignalDirection SignalDirection,
+    SignalCategory SignalCategory)
+{
+    public string Reason => SignalReason;
+}
 
 public sealed record TradeAction(
     DateOnly Date,

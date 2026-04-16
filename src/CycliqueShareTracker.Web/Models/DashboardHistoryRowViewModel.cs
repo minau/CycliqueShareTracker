@@ -29,4 +29,9 @@ public sealed class DashboardHistoryRowViewModel
     public string? MacdTrendChg { get; init; }
     public int? CountDaysSinceChgVente { get; init; }
     public int? CountDaysSinceChgAchat { get; init; }
+    public string Signal { get; init; } = "NONE";
+    public string? SignalReason { get; init; }
+    public string? SignalReasons { get; init; }
+    public string? SignalDirection { get; init; }
+    public string? SignalCategory { get; init; }
 }

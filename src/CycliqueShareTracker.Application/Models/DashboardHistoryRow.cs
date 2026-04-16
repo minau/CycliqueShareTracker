@@ -1,3 +1,5 @@
+using CycliqueShareTracker.Application.Trading;
+
 namespace CycliqueShareTracker.Application.Models;
 
 public sealed record DashboardHistoryRow(
@@ -27,4 +29,9 @@ public sealed record DashboardHistoryRow(
     int? MacdTrendCount,
     string? MacdTrendChg,
     int? CountDaysSinceChgVente,
-    int? CountDaysSinceChgAchat);
+    int? CountDaysSinceChgAchat,
+    TradeSignalType SignalType,
+    string? SignalReason,
+    IReadOnlyList<string> SignalReasons,
+    SignalDirection SignalDirection,
+    SignalCategory SignalCategory);
