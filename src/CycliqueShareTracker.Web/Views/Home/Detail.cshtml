@@ -46,17 +46,18 @@
 </section>
 
 
-<form asp-action="Refresh" method="post">
+<div class="detail-action-forms">
+<form asp-action="Refresh" method="post" class="inline-action-form">
     @Html.AntiForgeryToken()
     <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
     <button type="submit">Lancer une mise à jour manuelle</button>
 </form>
-<form asp-action="ExportHistoryXlsx" method="get">
+<form asp-action="ExportHistoryXlsx" method="get" class="inline-action-form">
     <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
     <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
     <button type="submit">Exporter les données en XLSX</button>
 </form>
-
+</div>
 
 <section class="card indicator-settings-card">
     <h3>Paramètres des indicateurs</h3>
@@ -138,7 +139,42 @@
 <section class="card">
     <h3>Historique indicateurs & signaux</h3>
     <div class="table-scroll-x">
-        <table class="table-compact">
+
+    <div class="history-mobile-list">
+    @foreach (var row in Model.HistoryRows)
+    {
+        var trendClass = row.TrendPositionOnSar switch
+        {
+            "ACHAT" => "signal-buy",
+            "VENTE" => "signal-sell",
+            _ => string.Empty
+        };
+        var bbSignalClass = row.BbIsBottomUp switch
+        {
+            "ACHAT" => "signal-buy",
+            "VENTE" => "signal-sell",
+            _ => string.Empty
+        };
+
+        <article class="history-mobile-card">
+            <h4>@row.Date</h4>
+            <dl>
+                <div><dt>Open</dt><dd>@row.Open.ToString("F2")</dd></div>
+                <div><dt>High</dt><dd>@row.High.ToString("F2")</dd></div>
+                <div><dt>Low</dt><dd>@row.Low.ToString("F2")</dd></div>
+                <div><dt>Close</dt><dd>@row.Close.ToString("F2")</dd></div>
+                <div><dt>RSI</dt><dd>@(row.Rsi?.ToString("F2") ?? "N/A")</dd></div>
+                <div><dt>SAR</dt><dd>@(row.Sar?.ToString("F4") ?? "N/A")</dd></div>
+                <div><dt>MACD</dt><dd>@(row.MacdMacd?.ToString("F4") ?? "N/A")</dd></div>
+                <div><dt>Signal MACD</dt><dd>@(row.MacdSignal?.ToString("F4") ?? "N/A")</dd></div>
+                <div><dt>Tendance SAR</dt><dd class="@trendClass">@((row.TrendPositionOnSar ?? "-"))</dd></div>
+                <div><dt>Signal BB</dt><dd class="@bbSignalClass">@((row.BbIsBottomUp ?? "-"))</dd></div>
+            </dl>
+        </article>
+    }
+    </div>
+
+        <table class="table-compact responsive-table">
             <thead>
                 <tr>
                     <th>date</th>

@@ -91,12 +91,15 @@
             <span class="signal-pill signal-pill-short">SHORT</span>
             <span class="signal-pill signal-pill-leave">LEAVE_LONG / LEAVE_SHORT</span>
         </p>
-        <canvas id="backtestChart" height="140"></canvas>
+        <div class="chart-card-container">
+            <canvas id="backtestChart" height="140"></canvas>
+        </div>
     </section>
 
     <section class="card">
         <h3>Liste des trades simulés</h3>
-        <table>
+        <div class="table-scroll-x">
+        <table class="responsive-table responsive-table-trades">
             <thead>
                 <tr>
                     <th>Entrée</th>
@@ -117,22 +120,23 @@
             @foreach (var trade in Model.Trades)
             {
                 <tr>
-                    <td>@trade.EntryDate</td>
-                    <td>@trade.ExitDate</td>
-                    <td>@trade.Side</td>
-                    <td>@trade.Product</td>
-                    <td>@trade.EntryPrice.ToString("F2")</td>
-                    <td>@trade.ExitPrice.ToString("F2")</td>
-                    <td>@trade.Quantity.ToString("F4")</td>
-                    <td>@trade.GrossPnl.ToString("F2")</td>
-                    <td>@trade.NetPnl.ToString("F2")</td>
-                    <td>@trade.ReturnPercent.ToString("F2")%</td>
-                    <td>@trade.EntryReason</td>
-                    <td>@trade.ExitReason</td>
+                    <td data-label="Entrée">@trade.EntryDate</td>
+                    <td data-label="Sortie">@trade.ExitDate</td>
+                    <td data-label="Sens">@trade.Side</td>
+                    <td data-label="Produit">@trade.Product</td>
+                    <td data-label="Prix entrée">@trade.EntryPrice.ToString("F2")</td>
+                    <td data-label="Prix sortie">@trade.ExitPrice.ToString("F2")</td>
+                    <td data-label="Quantité">@trade.Quantity.ToString("F4")</td>
+                    <td data-label="PnL brut">@trade.GrossPnl.ToString("F2")</td>
+                    <td data-label="PnL net">@trade.NetPnl.ToString("F2")</td>
+                    <td data-label="Perf">@trade.ReturnPercent.ToString("F2")%</td>
+                    <td data-label="Raison entrée">@trade.EntryReason</td>
+                    <td data-label="Raison sortie">@trade.ExitReason</td>
                 </tr>
             }
             </tbody>
         </table>
+        </div>
     </section>
 }
 
