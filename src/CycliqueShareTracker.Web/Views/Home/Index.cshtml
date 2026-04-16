@@ -1,49 +1,51 @@
 @model WatchlistViewModel
 
 <section class="card">
-    <table>
-        <thead>
-            <tr>
-                <th>Action</th>
-                <th>Secteur</th>
-                <th>Prix</th>
-                <th>SMA50</th>
-                <th>SMA200</th>
-                <th>RSI14</th>
-                <th>Drawdown 52w</th>
-                <th>Détail</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in Model.Items)
-            {
+    <div class="table-scroll-x">
+        <table class="responsive-table">
+            <thead>
                 <tr>
-                    <td><strong>@item.Name</strong><br />@item.Symbol</td>
-                    <td>@item.Sector</td>
-                    <td>@(item.LastClose?.ToString("F2") ?? "N/A")</td>
-                    <td>@(item.Sma50?.ToString("F2") ?? "N/A")</td>
-                    <td>@(item.Sma200?.ToString("F2") ?? "N/A")</td>
-                    <td>@(item.Rsi14?.ToString("F2") ?? "N/A")</td>
-                    <td>@(item.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
-                    <td>
-                        <a asp-controller="Home"
-                           asp-action="Detail"
-                           asp-route-symbol="@item.Symbol"
-                           asp-route-algorithmType="@Model.ActiveAlgorithmType">Ouvrir</a>
-                    </td>
+                    <th>Action</th>
+                    <th>Secteur</th>
+                    <th>Prix</th>
+                    <th>SMA50</th>
+                    <th>SMA200</th>
+                    <th>RSI14</th>
+                    <th>Drawdown 52w</th>
+                    <th>Détail</th>
                 </tr>
-                @if (!string.IsNullOrWhiteSpace(item.Error))
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
                 {
                     <tr>
-                        <td colspan="8">@item.Error</td>
+                        <td data-label="Action"><strong>@item.Name</strong><br />@item.Symbol</td>
+                        <td data-label="Secteur">@item.Sector</td>
+                        <td data-label="Prix">@(item.LastClose?.ToString("F2") ?? "N/A")</td>
+                        <td data-label="SMA50">@(item.Sma50?.ToString("F2") ?? "N/A")</td>
+                        <td data-label="SMA200">@(item.Sma200?.ToString("F2") ?? "N/A")</td>
+                        <td data-label="RSI14">@(item.Rsi14?.ToString("F2") ?? "N/A")</td>
+                        <td data-label="Drawdown 52w">@(item.Drawdown52WeeksPercent?.ToString("F2") ?? "N/A")%</td>
+                        <td data-label="Détail">
+                            <a asp-controller="Home"
+                               asp-action="Detail"
+                               asp-route-symbol="@item.Symbol"
+                               asp-route-algorithmType="@Model.ActiveAlgorithmType">Ouvrir</a>
+                        </td>
                     </tr>
+                    @if (!string.IsNullOrWhiteSpace(item.Error))
+                    {
+                        <tr>
+                            <td colspan="8">@item.Error</td>
+                        </tr>
+                    }
                 }
-            }
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
 </section>
 
-<form asp-action="Refresh" method="post">
+<form asp-action="Refresh" method="post" class="inline-action-form">
     @Html.AntiForgeryToken()
     <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
     <button type="submit">Lancer une mise à jour manuelle</button>
