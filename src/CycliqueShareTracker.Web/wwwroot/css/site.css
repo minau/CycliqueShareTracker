@@ -192,3 +192,31 @@ body.backtest-chart-pan-active {
     cursor: grabbing;
     user-select: none;
 }
+
+.table-scroll-x {
+    overflow-x: auto;
+}
+
+.table-compact {
+    min-width: 2200px;
+    font-size: 0.83rem;
+}
+
+.table-compact th {
+    white-space: nowrap;
+    background: #f8fafc;
+}
+
+.table-compact td {
+    white-space: nowrap;
+}
+
+.signal-buy {
+    color: #166534;
+    font-weight: 700;
+}
+
+.signal-sell {
+    color: #b91c1c;
+    font-weight: 700;
+}

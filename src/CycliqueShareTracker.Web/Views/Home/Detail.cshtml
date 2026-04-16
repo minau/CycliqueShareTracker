@@ -84,27 +84,89 @@
 </section>
 
 <section class="card">
-    <h3>Historique récent</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var row in Model.RecentPrices)
-        {
-            <tr>
-                <td>@row.Date</td>
-                <td>@row.Open.ToString("F2")</td>
-                <td>@row.High.ToString("F2")</td>
-                <td>@row.Low.ToString("F2")</td>
-                <td>@row.Close.ToString("F2")</td>
-                <td>@row.Volume</td>
-            </tr>
-        }
-        </tbody>
-    </table>
+    <h3>Historique indicateurs & signaux</h3>
+    <div class="table-scroll-x">
+        <table class="table-compact">
+            <thead>
+                <tr>
+                    <th>date</th>
+                    <th>open</th>
+                    <th>high</th>
+                    <th>low</th>
+                    <th>close</th>
+                    <th>sar</th>
+                    <th>macd/signal</th>
+                    <th>macd/macd</th>
+                    <th>macd/divergence</th>
+                    <th>rsi</th>
+                    <th>bb/top</th>
+                    <th>bb/middle</th>
+                    <th>bb/bottom</th>
+                    <th>SAR_WAY_CHANGE</th>
+                    <th>SAR_JUMP_VALUE</th>
+                    <th>SAR_NOTIF_CHANGE_AND_GAMMA</th>
+                    <th>TREND_POSITION_ON_SAR</th>
+                    <th>RSI_STRENGTH_ABS</th>
+                    <th>BB_IS_BOTTOM_UP</th>
+                    <th>BB_MID_HIT_UP</th>
+                    <th>BB_MID_HIT_DOWN</th>
+                    <th>MACD_INVERSE</th>
+                    <th>MACD_TREND</th>
+                    <th>MACD_TREND_COUNT</th>
+                    <th>MACD_TREND_CHG</th>
+                    <th>COUNT_DAYS_SINCE_CHG_VENTE</th>
+                    <th>COUNT_DAYS_SINCE_CHG_ACHAT</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Model.HistoryRows)
+            {
+                var trendClass = row.TrendPositionOnSar switch
+                {
+                    "ACHAT" => "signal-buy",
+                    "VENTE" => "signal-sell",
+                    _ => string.Empty
+                };
+                var bbSignalClass = row.BbIsBottomUp switch
+                {
+                    "ACHAT" => "signal-buy",
+                    "VENTE" => "signal-sell",
+                    _ => string.Empty
+                };
+
+                <tr>
+                    <td>@row.Date</td>
+                    <td>@row.Open.ToString("F2")</td>
+                    <td>@row.High.ToString("F2")</td>
+                    <td>@row.Low.ToString("F2")</td>
+                    <td>@row.Close.ToString("F2")</td>
+                    <td>@(row.Sar?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.MacdSignal?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.MacdMacd?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.MacdDivergence?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.Rsi?.ToString("F2") ?? "N/A")</td>
+                    <td>@(row.BbTop?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.BbMiddle?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.BbBottom?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.SarWayChange?.ToString("F6") ?? "N/A")</td>
+                    <td>@(row.SarJumpValue?.ToString("F4") ?? "N/A")</td>
+                    <td>@(row.SarNotifChangeAndGamma ?? "-")</td>
+                    <td class="@trendClass">@((row.TrendPositionOnSar ?? "-"))</td>
+                    <td>@(row.RsiStrengthAbs?.ToString() ?? "N/A")</td>
+                    <td class="@bbSignalClass">@((row.BbIsBottomUp ?? "-"))</td>
+                    <td>@(row.BbMidHitUp ?? "-")</td>
+                    <td>@(row.BbMidHitDown ?? "-")</td>
+                    <td>@(row.MacdInverse?.ToString() ?? "N/A")</td>
+                    <td>@(row.MacdTrend ?? "-")</td>
+                    <td>@(row.MacdTrendCount?.ToString() ?? "N/A")</td>
+                    <td>@(row.MacdTrendChg ?? "-")</td>
+                    <td>@(row.CountDaysSinceChgVente?.ToString() ?? "N/A")</td>
+                    <td>@(row.CountDaysSinceChgAchat?.ToString() ?? "N/A")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
 </section>
 
 @{

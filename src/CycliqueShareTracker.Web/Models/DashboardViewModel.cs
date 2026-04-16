@@ -31,7 +31,7 @@ public sealed class DashboardViewModel
     public DateOnly? CurrentEntryDate { get; init; }
     public decimal? CurrentEntryPrice { get; init; }
     public string? CurrentProductId { get; init; }
-    public IReadOnlyList<PriceBar> RecentPrices { get; init; } = Array.Empty<PriceBar>();
+    public IReadOnlyList<DashboardHistoryRowViewModel> HistoryRows { get; init; } = Array.Empty<DashboardHistoryRowViewModel>();
 
     public static DashboardViewModel FromSnapshot(DashboardSnapshot snapshot, string assetSector, string? notice = null)
     {
@@ -82,13 +82,42 @@ public sealed class DashboardViewModel
                 Action = x.Action,
                 ResultingPosition = x.ResultingPosition
             }).ToList(),
+            HistoryRows = snapshot.HistoryRows.Select(x => new DashboardHistoryRowViewModel
+            {
+                Date = x.Date.ToString("dd/MM/yyyy"),
+                Open = x.Open,
+                High = x.High,
+                Low = x.Low,
+                Close = x.Close,
+                Sar = x.Sar,
+                MacdSignal = x.MacdSignal,
+                MacdMacd = x.MacdMacd,
+                MacdDivergence = x.MacdDivergence,
+                Rsi = x.Rsi,
+                BbTop = x.BbTop,
+                BbMiddle = x.BbMiddle,
+                BbBottom = x.BbBottom,
+                SarWayChange = x.SarWayChange,
+                SarJumpValue = x.SarJumpValue,
+                SarNotifChangeAndGamma = x.SarNotifChangeAndGamma,
+                TrendPositionOnSar = x.TrendPositionOnSar,
+                RsiStrengthAbs = x.RsiStrengthAbs,
+                BbIsBottomUp = x.BbIsBottomUp,
+                BbMidHitUp = x.BbMidHitUp,
+                BbMidHitDown = x.BbMidHitDown,
+                MacdInverse = x.MacdInverse,
+                MacdTrend = x.MacdTrend,
+                MacdTrendCount = x.MacdTrendCount,
+                MacdTrendChg = x.MacdTrendChg,
+                CountDaysSinceChgVente = x.CountDaysSinceChgVente,
+                CountDaysSinceChgAchat = x.CountDaysSinceChgAchat
+            }).ToList(),
             CurrentPositionSide = snapshot.CurrentPosition.Side,
             CurrentProduct = snapshot.CurrentPosition.Product,
             CurrentQuantity = snapshot.CurrentPosition.Quantity,
             CurrentEntryDate = snapshot.CurrentPosition.EntryDate,
             CurrentEntryPrice = snapshot.CurrentPosition.EntryPrice,
-            CurrentProductId = snapshot.CurrentPosition.ProductId,
-            RecentPrices = snapshot.RecentPrices
+            CurrentProductId = snapshot.CurrentPosition.ProductId
         };
     }
 }
