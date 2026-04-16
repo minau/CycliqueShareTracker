@@ -105,10 +105,11 @@ public sealed class DashboardService : IDashboardService
                 indicator?.BollingerLower,
                 indicator?.ParabolicSar);
         }).ToList();
-        var historyRows = BuildHistoryRows(visiblePrices, computedByDate);
+        var dailySignals = _signalEngine.Evaluate(trackedAsset.Symbol, orderedBars, computedList);
+        var signalsByDate = BuildSignalByDate(dailySignals);
+        var historyRows = BuildHistoryRows(visiblePrices, computedByDate, signalsByDate);
 
         var latestComputed = latestPrice is null ? null : computedList.FirstOrDefault(x => x.Date == latestPrice.Date);
-        var dailySignals = _signalEngine.Evaluate(trackedAsset.Symbol, orderedBars, computedList);
         var markers = BuildTradeMarkers(dailySignals, chartPoints);
         var currentPosition = dailySignals.LastOrDefault()?.PositionAfter ?? TrackedPosition.Empty(trackedAsset.Symbol);
 
@@ -167,7 +168,8 @@ public sealed class DashboardService : IDashboardService
 
     private static IReadOnlyList<DashboardHistoryRow> BuildHistoryRows(
         IReadOnlyList<Domain.Entities.DailyPrice> orderedVisiblePrices,
-        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate)
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> computedByDate,
+        IReadOnlyDictionary<DateOnly, TradeSignal> signalsByDate)
     {
         var rows = new List<DashboardHistoryRow>(orderedVisiblePrices.Count);
         string? previousTrendPosition = null;
@@ -223,6 +225,8 @@ public sealed class DashboardService : IDashboardService
                 currentMacdTrendCount = 0;
             }
 
+            signalsByDate.TryGetValue(price.Date, out var signal);
+
             rows.Add(new DashboardHistoryRow(
                 price.Date,
                 price.Open,
@@ -250,7 +254,12 @@ public sealed class DashboardService : IDashboardService
                 currentMacdTrendCount > 0 ? currentMacdTrendCount : null,
                 macdTrendChanged ? "chg" : null,
                 lastVenteChangeIndex.HasValue ? i - lastVenteChangeIndex.Value : null,
-                lastAchatChangeIndex.HasValue ? i - lastAchatChangeIndex.Value : null));
+                lastAchatChangeIndex.HasValue ? i - lastAchatChangeIndex.Value : null,
+                signal?.Type ?? TradeSignalType.None,
+                signal?.SignalReason,
+                signal?.SignalReasons ?? Array.Empty<string>(),
+                signal?.SignalDirection ?? SignalDirection.None,
+                signal?.SignalCategory ?? SignalCategory.None));
 
             previousSarWayChange = sarWayChange;
             previousSarJumpValue = sarJumpValue;
@@ -259,7 +268,7 @@ public sealed class DashboardService : IDashboardService
             previousMacdTrend = macdTrend;
         }
 
-        return rows;
+        return rows.OrderByDescending(x => x.Date).ToList();
     }
 
     private static decimal? ComputeSarWayChange(decimal? previousSar, decimal? currentSar)
@@ -412,6 +421,27 @@ public sealed class DashboardService : IDashboardService
         }
 
         return macdDivergence.Value >= previousMacdDivergence.Value ? "acc2" : "dec2";
+    }
+
+    private static IReadOnlyDictionary<DateOnly, TradeSignal> BuildSignalByDate(IReadOnlyList<DailySignalResult> dailySignals)
+    {
+        var signals = new Dictionary<DateOnly, TradeSignal>();
+
+        foreach (var result in dailySignals)
+        {
+            if (result.ExitSignal is not null)
+            {
+                signals[result.Date] = result.ExitSignal;
+                continue;
+            }
+
+            if (result.EntrySignal is not null)
+            {
+                signals[result.Date] = result.EntrySignal;
+            }
+        }
+
+        return signals;
     }
 
     private static IReadOnlyList<TradeMarker> BuildTradeMarkers(IReadOnlyList<DailySignalResult> dailySignals, IReadOnlyList<DashboardChartPoint> chartPoints)

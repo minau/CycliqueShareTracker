@@ -198,7 +198,7 @@ body.backtest-chart-pan-active {
 }
 
 .table-compact {
-    min-width: 2200px;
+    min-width: 2800px;
     font-size: 0.83rem;
 }
 
@@ -219,6 +219,16 @@ body.backtest-chart-pan-active {
 .signal-sell {
     color: #b91c1c;
     font-weight: 700;
+}
+
+.signal-exit-long {
+    color: #78350f;
+    background: #fed7aa;
+}
+
+.signal-exit-short {
+    color: #713f12;
+    background: #fef08a;
 }
 
 .indicator-settings-card .muted {

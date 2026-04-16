@@ -126,7 +126,12 @@ public sealed class DashboardViewModel
                 MacdTrendCount = x.MacdTrendCount,
                 MacdTrendChg = x.MacdTrendChg,
                 CountDaysSinceChgVente = x.CountDaysSinceChgVente,
-                CountDaysSinceChgAchat = x.CountDaysSinceChgAchat
+                CountDaysSinceChgAchat = x.CountDaysSinceChgAchat,
+                Signal = x.SignalType.ToDisplayLabel(),
+                SignalReason = x.SignalReason,
+                SignalReasons = x.SignalReasons.ToReasonText(),
+                SignalDirection = x.SignalDirection == SignalDirection.None ? null : x.SignalDirection.ToString().ToUpperInvariant(),
+                SignalCategory = x.SignalCategory == SignalCategory.None ? null : x.SignalCategory.ToString()
             }).ToList(),
             CurrentPositionSide = snapshot.CurrentPosition.Side,
             CurrentProduct = snapshot.CurrentPosition.Product,
