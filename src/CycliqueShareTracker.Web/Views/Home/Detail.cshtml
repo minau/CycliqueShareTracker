@@ -51,6 +51,11 @@
     <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
     <button type="submit">Lancer une mise à jour manuelle</button>
 </form>
+<form asp-action="ExportHistoryXlsx" method="get">
+    <input type="hidden" name="symbol" value="@Model.AssetSymbol" />
+    <input type="hidden" name="algorithmType" value="@Model.ActiveAlgorithmType" />
+    <button type="submit">Exporter les données en XLSX</button>
+</form>
 
 <section class="card">
     <div class="section-header">
