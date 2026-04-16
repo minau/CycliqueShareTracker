@@ -268,7 +268,7 @@ public sealed class DashboardService : IDashboardService
             previousMacdTrend = macdTrend;
         }
 
-        return rows;
+        return rows.OrderByDescending(x => x.Date).ToList();
     }
 
     private static decimal? ComputeSarWayChange(decimal? previousSar, decimal? currentSar)
