@@ -208,4 +208,26 @@ public class IndicatorCalculatorTests
         Assert.Equal(sar[2].Sar, enriched[2].ParabolicSar.Sar);
         Assert.Equal(enriched[3].BollingerBands.Middle, enriched[3].Indicator.BollingerMiddle);
     }
+
+    [Fact]
+    public void Compute_ShouldUseCustomIndicatorSettings_WhenProvided()
+    {
+        var calculator = new IndicatorCalculator();
+        var start = new DateOnly(2025, 1, 1);
+        var bars = new List<PriceBar>();
+
+        for (var i = 0; i < 40; i++)
+        {
+            var close = 100m + i;
+            bars.Add(new PriceBar(start.AddDays(i), close, close + 1m, close - 1m, close, 100));
+        }
+
+        var custom = new IndicatorComputationSettings(0.03m, 0.30m, 10, 1.5m, 5, 8, 3);
+        var computed = calculator.Compute(bars, custom);
+
+        Assert.True(computed[9].BollingerMiddle.HasValue);
+        Assert.True(computed[19].BollingerMiddle.HasValue);
+        Assert.True(computed[9].MacdLine.HasValue);
+        Assert.True(computed[9].MacdSignalLine.HasValue);
+    }
 }

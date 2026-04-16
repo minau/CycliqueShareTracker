@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<DailyPrice> DailyPrices => Set<DailyPrice>();
     public DbSet<DailyIndicator> DailyIndicators => Set<DailyIndicator>();
+    public DbSet<StockIndicatorSettings> StockIndicatorSettings => Set<StockIndicatorSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +45,15 @@ public class AppDbContext : DbContext
             entity.Property(x => x.MacdLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdSignalLine).HasColumnType("numeric(18,4)");
             entity.Property(x => x.MacdHistogram).HasColumnType("numeric(18,4)");
+        });
+
+        modelBuilder.Entity<StockIndicatorSettings>(entity =>
+        {
+            entity.HasIndex(x => x.Symbol).IsUnique();
+            entity.Property(x => x.Symbol).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ParabolicSarStep).HasColumnType("numeric(18,4)");
+            entity.Property(x => x.ParabolicSarMax).HasColumnType("numeric(18,4)");
+            entity.Property(x => x.BollingerStdDev).HasColumnType("numeric(18,4)");
         });
     }
 }

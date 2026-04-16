@@ -10,6 +10,7 @@ public sealed class BacktestService : IBacktestService
     private readonly IAssetRepository _assetRepository;
     private readonly IPriceRepository _priceRepository;
     private readonly IIndicatorCalculator _indicatorCalculator;
+    private readonly IIndicatorSettingsService _indicatorSettingsService;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly BacktestEngine _engine = new();
 
@@ -17,11 +18,13 @@ public sealed class BacktestService : IBacktestService
         IAssetRepository assetRepository,
         IPriceRepository priceRepository,
         IIndicatorCalculator indicatorCalculator,
+        IIndicatorSettingsService indicatorSettingsService,
         IOptions<WatchlistOptions> watchlistOptions)
     {
         _assetRepository = assetRepository;
         _priceRepository = priceRepository;
         _indicatorCalculator = indicatorCalculator;
+        _indicatorSettingsService = indicatorSettingsService;
         _watchlist = WatchlistOptions.BuildTrackedAssets(watchlistOptions.Value.Assets);
     }
 
@@ -43,7 +46,8 @@ public sealed class BacktestService : IBacktestService
             .OrderBy(x => x.Date)
             .Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume))
             .ToList();
-        var indicators = _indicatorCalculator.Compute(bars);
+        var indicatorSettings = await _indicatorSettingsService.GetOrCreateAsync(asset.Symbol, cancellationToken);
+        var indicators = _indicatorCalculator.Compute(bars, IndicatorComputationSettings.FromEntity(indicatorSettings));
 
         return _engine.Run(parameters, bars, indicators);
     }

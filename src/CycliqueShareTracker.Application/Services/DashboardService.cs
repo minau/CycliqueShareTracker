@@ -14,6 +14,7 @@ public sealed class DashboardService : IDashboardService
     private readonly ISignalAlgorithmRegistry _algorithmRegistry;
     private readonly IIndicatorCalculator _indicatorCalculator;
     private readonly ISignalEngine _signalEngine;
+    private readonly IIndicatorSettingsService _indicatorSettingsService;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly DashboardOptions _dashboardOptions;
 
@@ -23,6 +24,7 @@ public sealed class DashboardService : IDashboardService
         IIndicatorCalculator indicatorCalculator,
         ISignalAlgorithmRegistry algorithmRegistry,
         ISignalEngine signalEngine,
+        IIndicatorSettingsService indicatorSettingsService,
         IOptions<WatchlistOptions> watchlistOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
@@ -31,6 +33,7 @@ public sealed class DashboardService : IDashboardService
         _indicatorCalculator = indicatorCalculator;
         _algorithmRegistry = algorithmRegistry;
         _signalEngine = signalEngine;
+        _indicatorSettingsService = indicatorSettingsService;
         _watchlist = WatchlistOptions.BuildTrackedAssets(watchlistOptions.Value.Assets);
         _dashboardOptions = dashboardOptions.Value;
     }
@@ -68,7 +71,9 @@ public sealed class DashboardService : IDashboardService
         var ordered = recentPrices.OrderBy(x => x.Date).ToList();
         var visiblePrices = ordered.TakeLast(historyDays).ToList();
         var orderedBars = ordered.Select(x => new PriceBar(x.Date, x.Open, x.High, x.Low, x.Close, x.Volume)).ToList();
-        var computedList = _indicatorCalculator.Compute(orderedBars);
+        var indicatorSettings = await _indicatorSettingsService.GetOrCreateAsync(trackedAsset.Symbol, cancellationToken);
+        var computationSettings = IndicatorComputationSettings.FromEntity(indicatorSettings);
+        var computedList = _indicatorCalculator.Compute(orderedBars, computationSettings);
         var computedByDate = computedList.ToDictionary(x => x.Date);
         var algorithm = _algorithmRegistry.Get(algorithmType);
 
@@ -126,9 +131,38 @@ public sealed class DashboardService : IDashboardService
             historyRows,
             markers,
             currentPosition,
+            new IndicatorSettingsSnapshot(
+                indicatorSettings.ParabolicSarStep,
+                indicatorSettings.ParabolicSarMax,
+                indicatorSettings.BollingerPeriod,
+                indicatorSettings.BollingerStdDev,
+                indicatorSettings.MacdFastPeriod,
+                indicatorSettings.MacdSlowPeriod,
+                indicatorSettings.MacdSignalPeriod,
+                indicatorSettings.UpdatedAtUtc),
             orderedBars,
             algorithmType,
             algorithm.DisplayName);
+    }
+
+    public async Task SaveIndicatorSettingsAsync(string symbol, IndicatorComputationSettings settings, CancellationToken cancellationToken = default)
+    {
+        var trackedAsset = ResolveTrackedAsset(symbol);
+        var existing = await _indicatorSettingsService.GetOrCreateAsync(trackedAsset.Symbol, cancellationToken);
+        existing.ParabolicSarStep = settings.ParabolicSarStep;
+        existing.ParabolicSarMax = settings.ParabolicSarMax;
+        existing.BollingerPeriod = settings.BollingerPeriod;
+        existing.BollingerStdDev = settings.BollingerStdDev;
+        existing.MacdFastPeriod = settings.MacdFastPeriod;
+        existing.MacdSlowPeriod = settings.MacdSlowPeriod;
+        existing.MacdSignalPeriod = settings.MacdSignalPeriod;
+        await _indicatorSettingsService.SaveAsync(existing, cancellationToken);
+    }
+
+    public async Task ResetIndicatorSettingsAsync(string symbol, CancellationToken cancellationToken = default)
+    {
+        var trackedAsset = ResolveTrackedAsset(symbol);
+        await _indicatorSettingsService.ResetToDefaultAsync(trackedAsset.Symbol, cancellationToken);
     }
 
     private static IReadOnlyList<DashboardHistoryRow> BuildHistoryRows(

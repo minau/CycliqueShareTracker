@@ -5,12 +5,9 @@ namespace CycliqueShareTracker.Application.Services;
 
 public sealed class IndicatorCalculator : IIndicatorCalculator
 {
-    private const int MacdFastPeriod = 12;
-    private const int MacdSlowPeriod = 26;
-    private const int MacdSignalPeriod = 9;
-
-    public IReadOnlyList<ComputedIndicator> Compute(IReadOnlyList<PriceBar> prices)
+    public IReadOnlyList<ComputedIndicator> Compute(IReadOnlyList<PriceBar> prices, IndicatorComputationSettings? settings = null)
     {
+        settings ??= IndicatorComputationSettings.Default;
         if (prices.Count == 0)
         {
             return Array.Empty<ComputedIndicator>();
@@ -23,12 +20,12 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
             closeSeries[i] = ordered[i].Close;
         }
 
-        var ema12Series = ComputeEma(closeSeries, MacdFastPeriod);
-        var ema26Series = ComputeEma(closeSeries, MacdSlowPeriod);
+        var ema12Series = ComputeEma(closeSeries, settings.MacdFastPeriod);
+        var ema26Series = ComputeEma(closeSeries, settings.MacdSlowPeriod);
         var macdLineSeries = ComputeEmaDifference(ema12Series, ema26Series);
-        var macdSignalSeries = ComputeEma(macdLineSeries, MacdSignalPeriod);
-        var bollingerSeries = ComputeBollingerBands(ordered);
-        var parabolicSarSeries = ComputeParabolicSar(ordered);
+        var macdSignalSeries = ComputeEma(macdLineSeries, settings.MacdSignalPeriod);
+        var bollingerSeries = ComputeBollingerBands(ordered, settings.BollingerPeriod, settings.BollingerStdDev);
+        var parabolicSarSeries = ComputeParabolicSar(ordered, settings.ParabolicSarStep, settings.ParabolicSarMax);
         var results = new List<ComputedIndicator>(ordered.Count);
 
         for (var i = 0; i < ordered.Count; i++)
@@ -288,20 +285,18 @@ public sealed class IndicatorCalculator : IIndicatorCalculator
 
     public IReadOnlyList<EnrichedPriceBar> EnrichWithTechnicalIndicators(
         IReadOnlyList<PriceBar> prices,
-        int bollingerPeriod = 20,
-        decimal bollingerMultiplier = 2.0m,
-        decimal parabolicSarStep = 0.02m,
-        decimal parabolicSarMaxStep = 0.20m)
+        IndicatorComputationSettings? settings = null)
     {
+        settings ??= IndicatorComputationSettings.Default;
         if (prices.Count == 0)
         {
             return Array.Empty<EnrichedPriceBar>();
         }
 
         var ordered = prices.OrderBy(p => p.Date).ToList();
-        var computedIndicators = Compute(ordered);
-        var bollinger = ComputeBollingerBands(ordered, bollingerPeriod, bollingerMultiplier);
-        var parabolicSar = ComputeParabolicSar(ordered, parabolicSarStep, parabolicSarMaxStep);
+        var computedIndicators = Compute(ordered, settings);
+        var bollinger = ComputeBollingerBands(ordered, settings.BollingerPeriod, settings.BollingerStdDev);
+        var parabolicSar = ComputeParabolicSar(ordered, settings.ParabolicSarStep, settings.ParabolicSarMax);
         var result = new List<EnrichedPriceBar>(ordered.Count);
 
         for (var i = 0; i < ordered.Count; i++)

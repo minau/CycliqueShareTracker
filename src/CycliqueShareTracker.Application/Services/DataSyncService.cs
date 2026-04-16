@@ -13,6 +13,7 @@ public sealed class DataSyncService : IDataSyncService
     private readonly IIndicatorRepository _indicatorRepository;
     private readonly IAssetRepository _assetRepository;
     private readonly IIndicatorCalculator _indicatorCalculator;
+    private readonly IIndicatorSettingsService _indicatorSettingsService;
     private readonly IReadOnlyList<TrackedAssetOptions> _watchlist;
     private readonly ILogger<DataSyncService> _logger;
 
@@ -22,6 +23,7 @@ public sealed class DataSyncService : IDataSyncService
         IIndicatorRepository indicatorRepository,
         IAssetRepository assetRepository,
         IIndicatorCalculator indicatorCalculator,
+        IIndicatorSettingsService indicatorSettingsService,
         IOptions<WatchlistOptions> watchlistOptions,
         ILogger<DataSyncService> logger)
     {
@@ -30,6 +32,7 @@ public sealed class DataSyncService : IDataSyncService
         _indicatorRepository = indicatorRepository;
         _assetRepository = assetRepository;
         _indicatorCalculator = indicatorCalculator;
+        _indicatorSettingsService = indicatorSettingsService;
         _watchlist = WatchlistOptions.BuildTrackedAssets(watchlistOptions.Value.Assets);
         _logger = logger;
     }
@@ -77,7 +80,8 @@ public sealed class DataSyncService : IDataSyncService
             .OrderBy(p => p.Date)
             .ToList();
 
-        var computed = _indicatorCalculator.Compute(bars);
+        var indicatorSettings = await _indicatorSettingsService.GetOrCreateAsync(asset.Symbol, cancellationToken);
+        var computed = _indicatorCalculator.Compute(bars, IndicatorComputationSettings.FromEntity(indicatorSettings));
         if (computed.Count > 0)
         {
             var latest = computed[^1];

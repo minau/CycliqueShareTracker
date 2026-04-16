@@ -21,6 +21,7 @@ public sealed record DashboardSnapshot(
     IReadOnlyList<DashboardHistoryRow> HistoryRows,
     IReadOnlyList<TradeMarker> TradeMarkers,
     TrackedPosition CurrentPosition,
+    IndicatorSettingsSnapshot IndicatorSettings,
     IReadOnlyList<PriceBar> RecentPrices,
     AlgorithmType AlgorithmType,
     string AlgorithmName);

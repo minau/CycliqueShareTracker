@@ -96,12 +96,61 @@ public class HomeController : Controller
             snapshot = await _dashboardService.GetSnapshotAsync(trackedAsset.Symbol, algorithmType, cancellationToken);
         }
 
-        var notice = snapshot.LastClose is null
+        var missingDataNotice = snapshot.LastClose is null
             ? "Aucune donnée marché disponible actuellement pour cette action. Vérifiez la configuration provider/symbol map et relancez une mise à jour."
             : null;
 
-        var model = DashboardViewModel.FromSnapshot(snapshot, trackedAsset.Sector, notice);
+        var feedbackNotice = TempData["DashboardNotice"] as string;
+        var notice = string.Join(" ", new[] { missingDataNotice, feedbackNotice }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        var model = DashboardViewModel.FromSnapshot(snapshot, trackedAsset.Sector, string.IsNullOrWhiteSpace(notice) ? null : notice);
         return View(model);
+    }
+
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveIndicatorSettings(IndicatorSettingsFormModel form, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(form.Symbol))
+        {
+            return RedirectToAction(nameof(Index));
+        }
+
+        var algorithmType = ParseAlgorithmType(form.AlgorithmType);
+        var validationError = ValidateIndicatorSettings(form);
+        if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            TempData["DashboardNotice"] = validationError;
+            return RedirectToAction(nameof(Detail), new { symbol = form.Symbol, algorithmType });
+        }
+
+        var settings = new IndicatorComputationSettings(
+            form.ParabolicSarStep,
+            form.ParabolicSarMax,
+            form.BollingerPeriod,
+            form.BollingerStdDev,
+            form.MacdFastPeriod,
+            form.MacdSlowPeriod,
+            form.MacdSignalPeriod);
+
+        await _dashboardService.SaveIndicatorSettingsAsync(form.Symbol, settings, cancellationToken);
+        TempData["DashboardNotice"] = "Paramètres des indicateurs sauvegardés. Les indicateurs ont été recalculés.";
+        return RedirectToAction(nameof(Detail), new { symbol = form.Symbol, algorithmType });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetIndicatorSettings(string symbol, AlgorithmType algorithmType = AlgorithmType.RsiMeanReversion, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            return RedirectToAction(nameof(Index), new { algorithmType });
+        }
+
+        await _dashboardService.ResetIndicatorSettingsAsync(symbol, cancellationToken);
+        TempData["DashboardNotice"] = "Paramètres des indicateurs réinitialisés avec les valeurs par défaut.";
+        return RedirectToAction(nameof(Detail), new { symbol, algorithmType });
     }
 
     [HttpPost]
@@ -196,6 +245,44 @@ public class HomeController : Controller
         var result = await _backtestService.RunAsync(parameters, cancellationToken);
         var model = BacktestViewModel.FromResult(result, symbols);
         return View(model);
+    }
+
+
+    private static string? ValidateIndicatorSettings(IndicatorSettingsFormModel form)
+    {
+        if (form.MacdFastPeriod >= form.MacdSlowPeriod)
+        {
+            return "Validation: MACD Fast doit être strictement inférieur à MACD Slow.";
+        }
+
+        if (form.BollingerPeriod < 2)
+        {
+            return "Validation: BollingerPeriod doit être supérieur ou égal à 2.";
+        }
+
+        if (form.ParabolicSarStep <= 0 || form.ParabolicSarMax <= 0)
+        {
+            return "Validation: Parabolic SAR step et max doivent être strictement positifs.";
+        }
+
+        if (form.ParabolicSarStep >= form.ParabolicSarMax)
+        {
+            return "Validation: Parabolic SAR step doit être strictement inférieur à max.";
+        }
+
+        if (form.BollingerStdDev <= 0 || form.MacdSignalPeriod <= 0 || form.MacdFastPeriod <= 0 || form.MacdSlowPeriod <= 0)
+        {
+            return "Validation: toutes les périodes et écarts-types doivent être strictement positifs.";
+        }
+
+        return null;
+    }
+
+    private static AlgorithmType ParseAlgorithmType(string algorithmType)
+    {
+        return Enum.TryParse<AlgorithmType>(algorithmType, true, out var parsed)
+            ? parsed
+            : AlgorithmType.RsiMeanReversion;
     }
 
     private static IEnumerable<WatchlistItemViewModel> ApplySort(IEnumerable<WatchlistItemViewModel> items, string sortBy)
