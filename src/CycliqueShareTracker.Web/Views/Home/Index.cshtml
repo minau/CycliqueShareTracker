@@ -1,37 +1,6 @@
 @model WatchlistViewModel
 
 <section class="card">
-    <h2>Watchlist cyclique (MVP5)</h2>
-    <form method="get" asp-action="Index" class="watchlist-toolbar">
-        <label>
-            Algorithme
-            <select name="algorithmType" onchange="this.form.submit()">
-                @foreach (var algo in Enum.GetNames(typeof(CycliqueShareTracker.Application.Models.AlgorithmType)))
-                {
-                    if (algo == Model.ActiveAlgorithmType)
-                    {
-                        <option value="@algo" selected>@algo</option>
-                    }
-                    else
-                    {
-                        <option value="@algo">@algo</option>
-                    }
-                }
-            </select>
-        </label>
-        <label>
-            Tri
-            <select name="sortBy" onchange="this.form.submit()">
-                <option value="ticker" selected="@(Model.SortBy == "ticker")">Ticker</option>
-                <option value="name" selected="@(Model.SortBy == "name")">Nom</option>
-            </select>
-        </label>
-    </form>
-
-    <p>Algorithme actif: <strong>@Model.ActiveAlgorithmName</strong></p>
-</section>
-
-<section class="card">
     <table>
         <thead>
             <tr>
