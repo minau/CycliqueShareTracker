@@ -37,7 +37,7 @@ public sealed class BacktestEngine
 
             TradingSignalRules.UpdateSarTrendCounters(currentIndicator, previousIndicator, ref daysSinceBuyChange, ref daysSinceSellChange);
             var entrySignal = TradingSignalRules.ComputeEntrySignal(currentBar, currentIndicator, previousIndicator);
-            var exitSignal = TradingSignalRules.ComputeExitSignal(currentBar, currentIndicator, previousIndicator, daysSinceBuyChange, daysSinceSellChange);
+            var exitSignal = TradingSignalRules.ComputeExitSignal(orderedPrices, indicatorsByDate, i, daysSinceBuyChange, daysSinceSellChange);
 
             if (exitSignal is not null)
             {

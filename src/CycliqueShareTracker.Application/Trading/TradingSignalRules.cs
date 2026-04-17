@@ -41,12 +41,30 @@ public static class TradingSignalRules
         return null;
     }
 
-    public static TradeSignal? ComputeExitSignal(PriceBar bar, ComputedIndicator current, ComputedIndicator previous, int daysSinceBuyChange, int daysSinceSellChange)
+    public static TradeSignal? ComputeExitSignal(
+        IReadOnlyList<PriceBar> orderedPrices,
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> indicatorsByDate,
+        int currentIndex,
+        int daysSinceBuyChange,
+        int daysSinceSellChange)
     {
+        if (currentIndex <= 0 || currentIndex >= orderedPrices.Count)
+        {
+            return null;
+        }
+
+        var bar = orderedPrices[currentIndex];
+        var previousBar = orderedPrices[currentIndex - 1];
+        if (!indicatorsByDate.TryGetValue(bar.Date, out var current) ||
+            !indicatorsByDate.TryGetValue(previousBar.Date, out var previous))
+        {
+            return null;
+        }
+
         var trend = GetTrendFromSar(current);
         var bbIsBottomUp = ComputeBbBottomUpSignal(bar, current);
-        var bbMidHitUp = ComputeBbMidHitUp(bar, current, previous);
-        var bbMidHitDown = ComputeBbMidHitDown(bar, current, previous);
+        var bbMidHitUp = ComputeBbMidHitUp(orderedPrices, indicatorsByDate, currentIndex, bar, current);
+        var bbMidHitDown = ComputeBbMidHitDown(orderedPrices, indicatorsByDate, currentIndex, bar, current);
         var macdTrendChange = ComputeMacdTrendChange(current, previous);
 
         // Priority is deterministic when multiple exit conditions are true:
@@ -157,32 +175,95 @@ public static class TradingSignalRules
 
     private static int ComputeBbBottomUpSignal(PriceBar bar, ComputedIndicator indicator)
     {
-        if (!indicator.BollingerMiddle.HasValue)
+        if (!indicator.BollingerMiddle.HasValue || !indicator.BollingerLower.HasValue || !indicator.BollingerUpper.HasValue)
         {
             return 0;
         }
 
-        return bar.Close >= indicator.BollingerMiddle.Value ? 1 : -1;
+        if (indicator.BollingerLower.Value <= bar.High && bar.High < indicator.BollingerMiddle.Value)
+        {
+            return -1;
+        }
+
+        if (indicator.BollingerUpper.Value > bar.Low && bar.Low >= indicator.BollingerMiddle.Value)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
-    private static int ComputeBbMidHitUp(PriceBar bar, ComputedIndicator current, ComputedIndicator previous)
+    private static int ComputeBbMidHitUp(
+        IReadOnlyList<PriceBar> orderedPrices,
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> indicatorsByDate,
+        int currentIndex,
+        PriceBar bar,
+        ComputedIndicator current)
     {
-        if (!current.BollingerMiddle.HasValue || !previous.BollingerMiddle.HasValue || !previous.PreviousClose.HasValue)
+        if (!current.BollingerMiddle.HasValue || bar.Close > current.BollingerMiddle.Value)
         {
             return 0;
         }
 
-        return previous.PreviousClose.Value >= previous.BollingerMiddle.Value && bar.Close < current.BollingerMiddle.Value ? -1 : 0;
+        if (!TryGetFourthPreviousValidPoint(orderedPrices, indicatorsByDate, currentIndex, out var jMinusFourBar, out var jMinusFourIndicator))
+        {
+            return 0;
+        }
+
+        return jMinusFourBar.Close > jMinusFourIndicator.BollingerMiddle!.Value && jMinusFourBar.Close > bar.Close ? -1 : 0;
     }
 
-    private static int ComputeBbMidHitDown(PriceBar bar, ComputedIndicator current, ComputedIndicator previous)
+    private static int ComputeBbMidHitDown(
+        IReadOnlyList<PriceBar> orderedPrices,
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> indicatorsByDate,
+        int currentIndex,
+        PriceBar bar,
+        ComputedIndicator current)
     {
-        if (!current.BollingerMiddle.HasValue || !previous.BollingerMiddle.HasValue || !previous.PreviousClose.HasValue)
+        if (!current.BollingerMiddle.HasValue || bar.Close <= current.BollingerMiddle.Value)
         {
             return 0;
         }
 
-        return previous.PreviousClose.Value <= previous.BollingerMiddle.Value && bar.Close > current.BollingerMiddle.Value ? 1 : 0;
+        if (!TryGetFourthPreviousValidPoint(orderedPrices, indicatorsByDate, currentIndex, out var jMinusFourBar, out var jMinusFourIndicator))
+        {
+            return 0;
+        }
+
+        return jMinusFourBar.Close < jMinusFourIndicator.BollingerMiddle!.Value && jMinusFourBar.Close < bar.Close ? 1 : 0;
+    }
+
+    private static bool TryGetFourthPreviousValidPoint(
+        IReadOnlyList<PriceBar> orderedPrices,
+        IReadOnlyDictionary<DateOnly, ComputedIndicator> indicatorsByDate,
+        int currentIndex,
+        out PriceBar bar,
+        out ComputedIndicator indicator)
+    {
+        // J-4 must be the 4th previous trading point with exploitable values (Bollinger middle available).
+        var validPointsFound = 0;
+        for (var i = currentIndex - 1; i >= 0; i--)
+        {
+            var candidateBar = orderedPrices[i];
+            if (!indicatorsByDate.TryGetValue(candidateBar.Date, out var candidateIndicator) || !candidateIndicator.BollingerMiddle.HasValue)
+            {
+                continue;
+            }
+
+            validPointsFound++;
+            if (validPointsFound != 4)
+            {
+                continue;
+            }
+
+            bar = candidateBar;
+            indicator = candidateIndicator;
+            return true;
+        }
+
+        bar = default!;
+        indicator = default!;
+        return false;
     }
 
     private static int ComputeMacdTrendChange(ComputedIndicator current, ComputedIndicator previous)

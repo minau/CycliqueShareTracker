@@ -95,7 +95,7 @@ public sealed class SignalEngine : ISignalEngine
 
             TradingSignalRules.UpdateSarTrendCounters(current, previous, ref daysSinceBuyChange, ref daysSinceSellChange);
             var entry = TradingSignalRules.ComputeEntrySignal(currentPrice, current, previous);
-            var exit = TradingSignalRules.ComputeExitSignal(currentPrice, current, previous, daysSinceBuyChange, daysSinceSellChange);
+            var exit = TradingSignalRules.ComputeExitSignal(orderedPrices, indicatorsByDate, i, daysSinceBuyChange, daysSinceSellChange);
 
             var actions = new List<TradeAction>();
             position = TransitionPosition(symbol, currentPrice, entry, exit, position, defaultQuantity, inWindow, actions);
