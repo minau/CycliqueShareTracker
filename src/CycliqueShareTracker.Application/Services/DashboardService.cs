@@ -2,6 +2,7 @@ using CycliqueShareTracker.Application.Interfaces;
 using CycliqueShareTracker.Application.Models;
 using CycliqueShareTracker.Application.Trading;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace CycliqueShareTracker.Application.Services;
 
@@ -172,14 +173,11 @@ public sealed class DashboardService : IDashboardService
         IReadOnlyDictionary<DateOnly, TradeSignal> signalsByDate)
     {
         var rows = new List<DashboardHistoryRow>(orderedVisiblePrices.Count);
-        string? previousTrendPosition = null;
-        decimal? previousSarWayChange = null;
         decimal? previousSarJumpValue = null;
         decimal? previousMacdDivergence = null;
-        string? previousMacdTrend = null;
-        var currentMacdTrendCount = 0;
-        int? lastVenteChangeIndex = null;
-        int? lastAchatChangeIndex = null;
+        var sarWayChangeHistory = new List<decimal?>(orderedVisiblePrices.Count);
+        var trendPositionHistory = new List<string?>(orderedVisiblePrices.Count);
+        var macdTrendHistory = new List<string?>(orderedVisiblePrices.Count);
 
         for (var i = 0; i < orderedVisiblePrices.Count; i++)
         {
@@ -195,35 +193,20 @@ public sealed class DashboardService : IDashboardService
             var previousSar = previousIndicator?.ParabolicSar;
             var sar = indicator?.ParabolicSar;
             var sarWayChange = ComputeSarWayChange(previousSar, sar);
+            sarWayChangeHistory.Add(sarWayChange);
             decimal? sarJumpValue = (previousSar.HasValue && sar.HasValue)
                 ? decimal.Round(Math.Abs(sar.Value - previousSar.Value), 4)
                 : null;
-            var sarNotif = ComputeSarNotification(sarWayChange, previousSarWayChange, sarJumpValue, previousSarJumpValue);
-            var trendPosition = ComputeTrendPositionOnSar(previousTrendPosition, price, i > 0 ? orderedVisiblePrices[i - 1] : null, sar, previousSar);
-            if (trendPosition == "VENTE" && trendPosition != previousTrendPosition)
-            {
-                lastVenteChangeIndex = i;
-            }
-            else if (trendPosition == "ACHAT" && trendPosition != previousTrendPosition)
-            {
-                lastAchatChangeIndex = i;
-            }
+            var sarNotif = ComputeSarNotification(sarWayChange, i > 0 ? sarWayChangeHistory[i - 1] : null, sarJumpValue, previousSarJumpValue);
+            var trendPosition = ComputeTrendPositionOnChange(sarWayChangeHistory, trendPositionHistory, i, sar, price.Close);
+            trendPositionHistory.Add(trendPosition);
 
             var macdDivergence = indicator?.MacdHistogram;
             var macdTrend = ComputeMacdTrend(macdDivergence, previousMacdDivergence);
-            var macdTrendChanged = !string.IsNullOrWhiteSpace(macdTrend)
-                && !string.IsNullOrWhiteSpace(previousMacdTrend)
-                && !string.Equals(macdTrend, previousMacdTrend, StringComparison.Ordinal);
-            if (!string.IsNullOrWhiteSpace(macdTrend))
-            {
-                currentMacdTrendCount = string.Equals(macdTrend, previousMacdTrend, StringComparison.Ordinal)
-                    ? currentMacdTrendCount + 1
-                    : 1;
-            }
-            else
-            {
-                currentMacdTrendCount = 0;
-            }
+            macdTrendHistory.Add(macdTrend);
+            var currentMacdTrendCount = ComputeMacdTrendCount(macdTrendHistory, i);
+            var previousMacdTrendCount = i > 0 ? ComputeMacdTrendCount(macdTrendHistory, i - 1) : 0;
+            var macdTrendChange = ComputeMacdTrendChange(currentMacdTrendCount, previousMacdTrendCount);
 
             signalsByDate.TryGetValue(price.Date, out var signal);
 
@@ -251,21 +234,18 @@ public sealed class DashboardService : IDashboardService
                 ComputeBollingerMiddleHitDown(price, i > 0 ? orderedVisiblePrices[i - 1] : null, indicator, previousIndicator),
                 macdDivergence.HasValue ? (macdDivergence.Value > 0 ? 1 : -1) : null,
                 macdTrend,
-                currentMacdTrendCount > 0 ? currentMacdTrendCount : null,
-                macdTrendChanged ? "chg" : null,
-                lastVenteChangeIndex.HasValue ? i - lastVenteChangeIndex.Value : null,
-                lastAchatChangeIndex.HasValue ? i - lastAchatChangeIndex.Value : null,
+                currentMacdTrendCount,
+                macdTrendChange == 0 ? null : macdTrendChange.ToString(CultureInfo.InvariantCulture),
+                ComputeCountDaysSinceChgVente(trendPositionHistory, i),
+                ComputeCountDaysSinceChgAchat(trendPositionHistory, i),
                 signal?.Type ?? TradeSignalType.None,
                 signal?.SignalReason,
                 signal?.SignalReasons ?? Array.Empty<string>(),
                 signal?.SignalDirection ?? SignalDirection.None,
                 signal?.SignalCategory ?? SignalCategory.None));
 
-            previousSarWayChange = sarWayChange;
             previousSarJumpValue = sarJumpValue;
-            previousTrendPosition = trendPosition;
             previousMacdDivergence = macdDivergence;
-            previousMacdTrend = macdTrend;
         }
 
         return rows.OrderByDescending(x => x.Date).ToList();
@@ -306,31 +286,40 @@ public sealed class DashboardService : IDashboardService
         return sarJumpValue.Value >= previousSarJumpValue.Value ? "acc" : "dec";
     }
 
-    private static string? ComputeTrendPositionOnSar(
-        string? previousTrendPosition,
-        Domain.Entities.DailyPrice currentPrice,
-        Domain.Entities.DailyPrice? previousPrice,
+    private static string? ComputeTrendPositionOnChange(
+        IReadOnlyList<decimal?> sarWayChangeHistory,
+        IReadOnlyList<string?> trendPositionHistory,
+        int currentIndex,
         decimal? currentSar,
-        decimal? previousSar)
+        decimal close)
     {
-        if (currentSar.HasValue && previousSar.HasValue && previousPrice is not null)
+        if (currentIndex >= 4)
         {
-            var switchedToVente = previousPrice.Close >= previousSar.Value && currentPrice.Close < currentSar.Value;
+            var currentWay = sarWayChangeHistory[currentIndex];
+            var switchedToVente = currentWay < 0m
+                && sarWayChangeHistory[currentIndex - 1] > 0m
+                && sarWayChangeHistory[currentIndex - 2] > 0m
+                && sarWayChangeHistory[currentIndex - 3] > 0m
+                && sarWayChangeHistory[currentIndex - 4] > 0m;
             if (switchedToVente)
             {
                 return "VENTE";
             }
 
-            var switchedToAchat = previousPrice.Close <= previousSar.Value && currentPrice.Close > currentSar.Value;
+            var switchedToAchat = currentWay > 0m
+                && sarWayChangeHistory[currentIndex - 1] < 0m
+                && sarWayChangeHistory[currentIndex - 2] < 0m
+                && sarWayChangeHistory[currentIndex - 3] < 0m
+                && sarWayChangeHistory[currentIndex - 4] < 0m;
             if (switchedToAchat)
             {
                 return "ACHAT";
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(previousTrendPosition))
+        if (currentIndex > 0)
         {
-            return previousTrendPosition;
+            return trendPositionHistory[currentIndex - 1];
         }
 
         if (!currentSar.HasValue)
@@ -338,27 +327,44 @@ public sealed class DashboardService : IDashboardService
             return null;
         }
 
-        return currentPrice.Close >= currentSar.Value ? "ACHAT" : "VENTE";
+        return close >= currentSar.Value ? "ACHAT" : "VENTE";
     }
 
-    private static int? ComputeRsiStrengthAbs(decimal? rsi)
+    private static int? ComputeRsiStrengthAbs(decimal? rsi14)
     {
-        if (!rsi.HasValue)
+        if (!rsi14.HasValue)
         {
             return null;
         }
 
-        if (rsi.Value >= 70m || rsi.Value <= 30m)
+        var rsi = rsi14.Value <= 1m ? rsi14.Value * 100m : rsi14.Value;
+
+        if (rsi > 75m)
         {
             return 3;
         }
 
-        if (rsi.Value >= 60m || rsi.Value <= 40m)
+        if (rsi > 65m)
         {
             return 2;
         }
 
-        return 1;
+        if (rsi >= 50m)
+        {
+            return 1;
+        }
+
+        if (rsi < 25m)
+        {
+            return -3;
+        }
+
+        if (rsi < 35m)
+        {
+            return -2;
+        }
+
+        return -1;
     }
 
     private static string? ComputeBollingerBottomUpSignal(Domain.Entities.DailyPrice price, ComputedIndicator? indicator)
@@ -421,6 +427,59 @@ public sealed class DashboardService : IDashboardService
         }
 
         return macdDivergence.Value >= previousMacdDivergence.Value ? "acc2" : "dec2";
+    }
+
+    private static int ComputeMacdTrendCount(IReadOnlyList<string?> history, int currentIndex)
+    {
+        var start = Math.Max(0, currentIndex - 3);
+        var count = 0;
+        for (var i = start; i <= currentIndex; i++)
+        {
+            count += history[i] switch
+            {
+                "acc2" => 1,
+                "dec2" => -1,
+                _ => 0
+            };
+        }
+
+        return count;
+    }
+
+    private static int ComputeMacdTrendChange(int currentMacdTrendCount, int previousMacdTrendCount)
+    {
+        if (currentMacdTrendCount >= 0 && previousMacdTrendCount <= 0)
+        {
+            return 1;
+        }
+
+        if (currentMacdTrendCount <= 0 && previousMacdTrendCount >= 0)
+        {
+            return -1;
+        }
+
+        return 0;
+    }
+
+    private static int ComputeCountDaysSinceChgVente(IReadOnlyList<string?> history, int currentIndex)
+        => CountTrendPositionOnSar(history, currentIndex, "VENTE");
+
+    private static int ComputeCountDaysSinceChgAchat(IReadOnlyList<string?> history, int currentIndex)
+        => CountTrendPositionOnSar(history, currentIndex, "ACHAT");
+
+    private static int CountTrendPositionOnSar(IReadOnlyList<string?> history, int currentIndex, string expectedTrend, int windowSize = 7)
+    {
+        var start = Math.Max(0, currentIndex - (windowSize - 1));
+        var count = 0;
+        for (var i = start; i <= currentIndex; i++)
+        {
+            if (string.Equals(history[i], expectedTrend, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static IReadOnlyDictionary<DateOnly, TradeSignal> BuildSignalByDate(IReadOnlyList<DailySignalResult> dailySignals)
